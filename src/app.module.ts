@@ -1,0 +1,31 @@
+import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
+import { TravelModule } from './travel/travel.module';
+import { DestinationController } from './destination/destination.controller';
+import { DestinationModule } from './destination/destination.module';
+import { SeasonalAdventuresModule } from './seasonal-adventures/seasonal-adventures.module';
+import { GeorgianGastronomyModule } from './georgian-gastronomy/georgian-gastronomy.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      url: process.env.DATABASE_URL,
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      autoLoadEntities: true,
+      synchronize: true,
+      ssl: { rejectUnauthorized: false },
+    }),
+    TravelModule,
+    DestinationModule,
+    SeasonalAdventuresModule,
+    GeorgianGastronomyModule,
+  ],
+  controllers: [AppController, DestinationController],
+  providers: [AppService],
+})
+export class AppModule {}
