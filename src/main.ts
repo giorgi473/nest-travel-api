@@ -17,8 +17,8 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  app.use(bodyParser.json({ limit: '100mb' }));
-  app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
+  app.use(bodyParser.json({ limit: '10mb' }));
+  app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
   app.use(
     '/uploads',
     express.static(path.join(__dirname, '..', 'public', 'uploads')),
@@ -26,7 +26,7 @@ async function bootstrap() {
   app.enableCors({
     origin: 'http://localhost:3000',
     methods: 'GET,POST,PUT,DELETE',
-    allowedHeaders: 'Content-Type, Authorization',
+    allowedHeaders: 'Content-Type',
   });
 
   await app.listen(8000);
