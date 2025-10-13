@@ -14,7 +14,14 @@ import * as path from 'path';
 @Injectable()
 export class TravelService {
   private readonly MAX_SLIDERS = 4;
-  private readonly ALLOWED_EXTENSIONS = ['jpeg', 'png', 'jpg', 'webp', 'svg'];
+  private readonly ALLOWED_EXTENSIONS = [
+    'jpeg',
+    'png',
+    'jpg',
+    'webp',
+    'svg',
+    'gif',
+  ];
 
   constructor(
     @InjectRepository(Slider)
@@ -22,48 +29,74 @@ export class TravelService {
   ) {}
 
   async createSlider(createSliderDto: CreateSliderDto): Promise<Slider> {
-    // Check the current number of sliders
     const count = await this.sliderRepository.count();
     if (count >= this.MAX_SLIDERS) {
       throw new BadRequestException(
-        `შეგიძლიათ შექმნათ მაქსიმუმ ${this.MAX_SLIDERS} სლაიდერი. გთხოვთ წაშალოთ ა�რსებული სლაიდერი ახლის დასამატებლად.`,
+        `შეგიძლიათ შექმნათ მაქსიმუმ ${this.MAX_SLIDERS} სლაიდერი.`,
       );
     }
 
-    // Validate and process base64 image
+    console.log(
+      'მიღებული base64 (პირველი 50 სიმბოლო):',
+      createSliderDto.src?.substring(0, 50),
+    );
+    if (
+      !createSliderDto.src ||
+      !createSliderDto.src.startsWith('data:image/')
+    ) {
+      throw new BadRequestException(
+        'სურათის base64 ფორმატი არასწორია ან არ არსებობს',
+      );
+    }
+
     const matches = createSliderDto.src.match(
-      /^data:image\/([a-zA-Z]+);base64,(.+)$/,
+      /^data:image\/([a-zA-Z0-9-+\/]+);base64,(.+)$/,
     );
     if (!matches) {
-      throw new BadRequestException('Invalid base64 image format');
+      console.error('Regex შეცდომა:', createSliderDto.src?.substring(0, 100));
+      throw new BadRequestException('Base64 სტრიქონის ფორმატი არასწორია');
     }
 
     const extension = matches[1].toLowerCase();
-    if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
-      throw new BadRequestException('Only JPEG and PNG images are allowed');
+    const normalizedExtension = extension === 'svg+xml' ? 'svg' : extension;
+    if (!this.ALLOWED_EXTENSIONS.includes(normalizedExtension)) {
+      console.error('არადაშვებული ფაილის ტიპი:', extension);
+      throw new BadRequestException(
+        `დაშვებულია მხოლოდ ${this.ALLOWED_EXTENSIONS.join(', ')} ფორმატები`,
+      );
     }
 
     const base64Data = matches[2];
-    const buffer = Buffer.from(base64Data, 'base64');
-    const fileName = `slider-${Date.now()}.${extension}`;
-    const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(base64Data, 'base64');
+    } catch (error) {
+      console.error('Base64 დეკოდირების შეცდომა:', error);
+      throw new BadRequestException(
+        'Base64 მონაცემების დეკოდირება ვერ მოხერხდა',
+      );
+    }
 
-    // Ensure the uploads directory exists
-    const uploadDir = path.dirname(filePath);
+    const fileName = `slider-${Date.now()}.${normalizedExtension}`;
+    const uploadDir = path.join(process.cwd(), 'Uploads');
+    const filePath = path.join(uploadDir, fileName);
+
+    console.log('ფაილის შენახვის მისამართი:', filePath);
+
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
+      console.log('შეიქმნა uploads ფოლდერი:', uploadDir);
     }
 
-    // Save the file
     try {
       fs.writeFileSync(filePath, buffer);
+      console.log('ფაილი წარმატებით შეინახა:', filePath);
     } catch (error) {
-      throw new BadRequestException('Failed to save image');
+      console.error('ფაილის შენახვის შეცდომა:', error);
+      throw new BadRequestException('ფაილის შენახვა ვერ მოხერხდა');
     }
 
-    // Update src to store the file path
-    createSliderDto.src = `/uploads/${fileName}`;
-
+    createSliderDto.src = `/uploads/${fileName}`; // ქვედა რეგისტრი
     const slider = this.sliderRepository.create(createSliderDto);
     return this.sliderRepository.save(slider);
   }
@@ -77,7 +110,7 @@ export class TravelService {
   async findOneSlider(id: number): Promise<Slider> {
     const slider = await this.sliderRepository.findOne({ where: { id } });
     if (!slider) {
-      throw new NotFoundException(`Slider with ID ${id} not found`);
+      throw new NotFoundException(`სლაიდერი ID ${id}-ით ვერ მოიძებნა`);
     }
     return slider;
   }
@@ -88,51 +121,77 @@ export class TravelService {
   ): Promise<Slider> {
     const slider = await this.findOneSlider(id);
 
-    // Process base64 image if provided
     if (updateSliderDto.src) {
+      console.log(
+        'მიღებული base64 განახლებისთვის:',
+        updateSliderDto.src?.substring(0, 50),
+      );
+      if (!updateSliderDto.src.startsWith('data:image/')) {
+        throw new BadRequestException('სურათის base64 ფორმატი არასწორია');
+      }
+
       const matches = updateSliderDto.src.match(
-        /^data:image\/([a-zA-Z]+);base64,(.+)$/,
+        /^data:image\/([a-zA-Z0-9-+\/]+);base64,(.+)$/,
       );
       if (!matches) {
-        throw new BadRequestException('Invalid base64 image format');
+        console.error('Regex შეცდომა განახლებაში:', updateSliderDto.src);
+        throw new BadRequestException('Base64 სტრიქონის ფორმატი არასწორია');
       }
 
       const extension = matches[1].toLowerCase();
-      if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
-        throw new BadRequestException('Only JPEG and PNG images are allowed');
+      const normalizedExtension = extension === 'svg+xml' ? 'svg' : extension;
+      if (!this.ALLOWED_EXTENSIONS.includes(normalizedExtension)) {
+        console.error('არადაშვებული ფაილის ტიპი:', extension);
+        throw new BadRequestException(
+          `დაშვებულია მხოლოდ ${this.ALLOWED_EXTENSIONS.join(', ')} ფორმატები`,
+        );
       }
 
       const base64Data = matches[2];
-      const buffer = Buffer.from(base64Data, 'base64');
-      const fileName = `slider-${Date.now()}.${extension}`;
-      const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
+      let buffer: Buffer;
+      try {
+        buffer = Buffer.from(base64Data, 'base64');
+      } catch (error) {
+        console.error('Base64 დეკოდირების შეცდომა განახლებაში:', error);
+        throw new BadRequestException(
+          'Base64 მონაცემების დეკოდირება ვერ მოხერხდა',
+        );
+      }
 
-      // Ensure the uploads directory exists
-      const uploadDir = path.dirname(filePath);
+      const fileName = `slider-${Date.now()}.${normalizedExtension}`;
+      const uploadDir = path.join(process.cwd(), 'Uploads');
+      const filePath = path.join(uploadDir, fileName);
+
+      console.log('ფაილის განახლების მისამართი:', filePath);
+
       if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
+        console.log('შეიქმნა uploads ფოლდერი:', uploadDir);
       }
 
-      // Save the new file
       try {
         fs.writeFileSync(filePath, buffer);
+        console.log('ფაილი წარმატებით განახლდა:', filePath);
       } catch (error) {
-        throw new BadRequestException('Failed to save image');
+        console.error('ფაილის განახლების შეცდომა:', error);
+        throw new BadRequestException('ფაილის განახლება ვერ მოხერხდა');
       }
 
-      // Delete the old image file if it exists
       if (
         slider.src &&
-        fs.existsSync(path.join(__dirname, '..', '..', slider.src))
+        fs.existsSync(path.join(process.cwd(), slider.src.slice(1)))
       ) {
-        fs.unlinkSync(path.join(__dirname, '..', '..', slider.src));
+        try {
+          fs.unlinkSync(path.join(process.cwd(), slider.src.slice(1)));
+          console.log('ძველი ფაილი წაიშალა:', slider.src);
+        } catch (error) {
+          console.error('ძველი ფაილის წაშლის შეცდომა:', error);
+        }
       }
 
-      // Update src to new file path
-      slider.src = `/uploads/${fileName}`;
+      slider.src = `/uploads/${fileName}`; // ქვედა რეგისტრი
     }
 
-    // Update title and description if provided
     if (updateSliderDto.title) {
       slider.title = updateSliderDto.title;
     }
@@ -146,17 +205,21 @@ export class TravelService {
   async deleteSlider(id: number): Promise<void> {
     const slider = await this.findOneSlider(id);
 
-    // Delete the associated image file
     if (
       slider.src &&
-      fs.existsSync(path.join(__dirname, '..', '..', slider.src))
+      fs.existsSync(path.join(process.cwd(), slider.src.slice(1)))
     ) {
-      fs.unlinkSync(path.join(__dirname, '..', '..', slider.src));
+      try {
+        fs.unlinkSync(path.join(process.cwd(), slider.src.slice(1)));
+        console.log('ფაილი წაიშალა:', slider.src);
+      } catch (error) {
+        console.error('ფაილის წაშლის შეცდომა:', error);
+      }
     }
 
     const result = await this.sliderRepository.delete(id);
     if (result.affected === 0) {
-      throw new NotFoundException(`Slider with ID ${id} not found`);
+      throw new NotFoundException(`სლაიდერი ID ${id}-ით ვერ მოიძებნა`);
     }
   }
 

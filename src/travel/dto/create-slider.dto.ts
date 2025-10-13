@@ -1,33 +1,17 @@
-import {
-  IsString,
-  IsNotEmpty,
-  ValidateNested,
-  IsObject,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-
-export class LangText {
-  @IsString()
-  @IsNotEmpty()
-  ka: string;
-
-  @IsString()
-  @IsNotEmpty()
-  en: string;
-}
+import { IsNotEmpty, IsObject, IsString } from 'class-validator';
 
 export class CreateSliderDto {
-  @IsString()
-  @IsNotEmpty()
-  src: string; // Base64 string in create DTO
+  @IsNotEmpty({ message: 'სურათის base64 ფორმატი აუცილებელია' })
+  @IsString({ message: 'src უნდა იყოს სტრიქონი' })
+  src: string;
 
-  @IsObject()
-  @ValidateNested()
-  @Type(() => LangText)
-  title: LangText;
+  @IsNotEmpty({ message: 'სათაური აუცილებელია' })
+  @IsObject({ message: 'title უნდა იყოს ობიექტი { en: string, ka: string }' })
+  title: { en: string; ka: string };
 
-  @IsObject()
-  @ValidateNested()
-  @Type(() => LangText)
-  description: LangText;
+  @IsNotEmpty({ message: 'აღწერა აუცილებელია' })
+  @IsObject({
+    message: 'description უნდა იყოს ობიექტი { en: string, ka: string }',
+  })
+  description: { en: string; ka: string };
 }

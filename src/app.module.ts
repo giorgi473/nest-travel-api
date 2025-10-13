@@ -8,6 +8,11 @@ import { DestinationController } from './destination/destination.controller';
 import { DestinationModule } from './destination/destination.module';
 import { SeasonalAdventuresModule } from './seasonal-adventures/seasonal-adventures.module';
 import { GeorgianGastronomyModule } from './georgian-gastronomy/georgian-gastronomy.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+import { TravelService } from './travel/travel.service';
+import { Slider } from './travel/entities/slider.entity';
+import { TravelController } from './travel/travel.controller';
 
 @Module({
   imports: [
@@ -20,12 +25,17 @@ import { GeorgianGastronomyModule } from './georgian-gastronomy/georgian-gastron
       synchronize: true,
       ssl: { rejectUnauthorized: false },
     }),
+    TypeOrmModule.forFeature([Slider]),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'Uploads'), // uploads ფოლდერი პროექტის root-ში
+      serveRoot: '/uploads', // URL-ის პრეფიქსი
+    }),
     TravelModule,
     DestinationModule,
     SeasonalAdventuresModule,
     GeorgianGastronomyModule,
   ],
-  controllers: [AppController, DestinationController],
-  providers: [AppService],
+  controllers: [AppController, DestinationController, TravelController],
+  providers: [AppService, TravelService],
 })
 export class AppModule {}
