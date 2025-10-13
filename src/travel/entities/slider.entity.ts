@@ -16,7 +16,7 @@ export class Slider {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 500 })
+  @Column({ type: 'varchar', length: 500 }) // File path/URL, 500 is sufficient
   src: string;
 
   @Column({ type: 'jsonb' })

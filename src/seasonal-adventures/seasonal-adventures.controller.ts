@@ -15,7 +15,7 @@ import { SeasonalAdventuresService } from './seasonal-adventures.service';
 import { CreateSeasonalAdventureDto } from './dto/create-seasonal-adventure.dto';
 import { UpdateSeasonalAdventureDto } from './dto/update-seasonal-adventure.dto';
 
-@Controller('api/v1/seasonal-adventures')
+@Controller('seasonal-adventures')
 export class SeasonalAdventuresController {
   constructor(
     private readonly seasonalAdventuresService: SeasonalAdventuresService,

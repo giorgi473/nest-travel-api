@@ -19,7 +19,7 @@ export class LangText {
 export class CreateSliderDto {
   @IsString()
   @IsNotEmpty()
-  src: string;
+  src: string; // Base64 string in create DTO
 
   @IsObject()
   @ValidateNested()

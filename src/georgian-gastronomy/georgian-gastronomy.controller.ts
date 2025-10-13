@@ -15,7 +15,7 @@ import { GeorgianGastronomyService } from './georgian-gastronomy.service';
 import { CreateDishDto } from './dto/create-georgian-gastronomy.dto';
 import { UpdateDishDto } from './dto/update-georgian-gastronomy.dto';
 
-@Controller('api/v1/georgian-gastronomy')
+@Controller('georgian-gastronomy')
 export class GeorgianGastronomyController {
   constructor(private readonly gastronomyService: GeorgianGastronomyService) {}
 

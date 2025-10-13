@@ -8,10 +8,13 @@ import { Repository } from 'typeorm';
 import { Slider } from './entities/slider.entity';
 import { CreateSliderDto } from './dto/create-slider.dto';
 import { UpdateSliderDto } from './dto/update-slider.dto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class TravelService {
   private readonly MAX_SLIDERS = 4;
+  private readonly ALLOWED_EXTENSIONS = ['jpeg', 'png', 'jpg', 'webp', 'svg'];
 
   constructor(
     @InjectRepository(Slider)
@@ -19,14 +22,47 @@ export class TravelService {
   ) {}
 
   async createSlider(createSliderDto: CreateSliderDto): Promise<Slider> {
-    // შევამოწმოთ რამდენი სლაიდერია უკვე
+    // Check the current number of sliders
     const count = await this.sliderRepository.count();
-
     if (count >= this.MAX_SLIDERS) {
       throw new BadRequestException(
-        `შეგიძლიათ შექმნათ მაქსიმუმ ${this.MAX_SLIDERS} სლაიდერი. გთხოვთ წაშალოთ არსებული სლაიდერი ახლის დასამატებლად.`,
+        `შეგიძლიათ შექმნათ მაქსიმუმ ${this.MAX_SLIDERS} სლაიდერი. გთხოვთ წაშალოთ ა�რსებული სლაიდერი ახლის დასამატებლად.`,
       );
     }
+
+    // Validate and process base64 image
+    const matches = createSliderDto.src.match(
+      /^data:image\/([a-zA-Z]+);base64,(.+)$/,
+    );
+    if (!matches) {
+      throw new BadRequestException('Invalid base64 image format');
+    }
+
+    const extension = matches[1].toLowerCase();
+    if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
+      throw new BadRequestException('Only JPEG and PNG images are allowed');
+    }
+
+    const base64Data = matches[2];
+    const buffer = Buffer.from(base64Data, 'base64');
+    const fileName = `slider-${Date.now()}.${extension}`;
+    const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
+
+    // Ensure the uploads directory exists
+    const uploadDir = path.dirname(filePath);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // Save the file
+    try {
+      fs.writeFileSync(filePath, buffer);
+    } catch (error) {
+      throw new BadRequestException('Failed to save image');
+    }
+
+    // Update src to store the file path
+    createSliderDto.src = `/uploads/${fileName}`;
 
     const slider = this.sliderRepository.create(createSliderDto);
     return this.sliderRepository.save(slider);
@@ -40,11 +76,9 @@ export class TravelService {
 
   async findOneSlider(id: number): Promise<Slider> {
     const slider = await this.sliderRepository.findOne({ where: { id } });
-
     if (!slider) {
       throw new NotFoundException(`Slider with ID ${id} not found`);
     }
-
     return slider;
   }
 
@@ -54,33 +88,78 @@ export class TravelService {
   ): Promise<Slider> {
     const slider = await this.findOneSlider(id);
 
-    // თუ title განახლდება, მთლიანად შეცვალე ობიექტი
+    // Process base64 image if provided
+    if (updateSliderDto.src) {
+      const matches = updateSliderDto.src.match(
+        /^data:image\/([a-zA-Z]+);base64,(.+)$/,
+      );
+      if (!matches) {
+        throw new BadRequestException('Invalid base64 image format');
+      }
+
+      const extension = matches[1].toLowerCase();
+      if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
+        throw new BadRequestException('Only JPEG and PNG images are allowed');
+      }
+
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+      const fileName = `slider-${Date.now()}.${extension}`;
+      const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
+
+      // Ensure the uploads directory exists
+      const uploadDir = path.dirname(filePath);
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      // Save the new file
+      try {
+        fs.writeFileSync(filePath, buffer);
+      } catch (error) {
+        throw new BadRequestException('Failed to save image');
+      }
+
+      // Delete the old image file if it exists
+      if (
+        slider.src &&
+        fs.existsSync(path.join(__dirname, '..', '..', slider.src))
+      ) {
+        fs.unlinkSync(path.join(__dirname, '..', '..', slider.src));
+      }
+
+      // Update src to new file path
+      slider.src = `/uploads/${fileName}`;
+    }
+
+    // Update title and description if provided
     if (updateSliderDto.title) {
       slider.title = updateSliderDto.title;
     }
-
-    // თუ description განახლდება, მთლიანად შეცვალე ობიექტი
     if (updateSliderDto.description) {
       slider.description = updateSliderDto.description;
-    }
-
-    // src-ს განახლება
-    if (updateSliderDto.src) {
-      slider.src = updateSliderDto.src;
     }
 
     return this.sliderRepository.save(slider);
   }
 
   async deleteSlider(id: number): Promise<void> {
-    const result = await this.sliderRepository.delete(id);
+    const slider = await this.findOneSlider(id);
 
+    // Delete the associated image file
+    if (
+      slider.src &&
+      fs.existsSync(path.join(__dirname, '..', '..', slider.src))
+    ) {
+      fs.unlinkSync(path.join(__dirname, '..', '..', slider.src));
+    }
+
+    const result = await this.sliderRepository.delete(id);
     if (result.affected === 0) {
       throw new NotFoundException(`Slider with ID ${id} not found`);
     }
   }
 
-  // დამატებითი: მხოლოდ ერთი ენის განახლება
   async updateSliderLanguage(
     id: number,
     lang: 'ka' | 'en',
@@ -92,7 +171,6 @@ export class TravelService {
     return this.sliderRepository.save(slider);
   }
 
-  // დამატებითი: მიმდინარე რაოდენობის შემოწმება
   async getSlidersCount(): Promise<{
     count: number;
     max: number;

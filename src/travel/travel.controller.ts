@@ -15,7 +15,7 @@ import { TravelService } from './travel.service';
 import { CreateSliderDto } from './dto/create-slider.dto';
 import { UpdateSliderDto } from './dto/update-slider.dto';
 
-@Controller('api/v1/slider')
+@Controller('slider')
 export class TravelController {
   constructor(private readonly travelService: TravelService) {}
 
@@ -29,7 +29,6 @@ export class TravelController {
   async findAll(@Query('lang') lang?: 'ka' | 'en') {
     const sliders = await this.travelService.findAllSliders();
 
-    // თუ ენა მითითებულია, დააბრუნე მხოლოდ იმ ენაზე
     if (lang) {
       return sliders.map((slider) => ({
         id: slider.id,
@@ -41,7 +40,6 @@ export class TravelController {
       }));
     }
 
-    // თუ არა, დააბრუნე ორივე ენა
     return sliders;
   }
 
