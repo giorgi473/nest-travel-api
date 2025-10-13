@@ -24,9 +24,9 @@ async function bootstrap() {
     express.static(path.join(__dirname, '..', 'public', 'uploads')),
   );
   app.enableCors({
-    origin: 'https://nest-travel-api-9x63.vercel.app',
+    origin: 'http://localhost:3000', // Allow your frontend origin
     methods: 'GET,POST,PUT,DELETE',
-    allowedHeaders: 'Content-Type',
+    allowedHeaders: 'Content-Type, Authorization',
   });
 
   await app.listen(8000);
