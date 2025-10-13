@@ -85,12 +85,12 @@
 // }
 import {
   Controller,
-  Get,
   Post,
+  Get,
   Body,
-  Patch,
   Param,
   Delete,
+  Patch,
   UseInterceptors,
   UploadedFile,
   ParseIntPipe,
@@ -98,22 +98,17 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TravelService } from './travel.service';
-import { UpdateSliderDto } from './dto/update-slider.dto';
 
-@Controller('api/v1/slider')
+// 👇 დარწმუნდი რომ path სწორია
+@Controller('slider') // ← ეს უნდა იყოს
 export class TravelController {
   constructor(private readonly travelService: TravelService) {}
 
-  /**
-   * ახალი სლაიდერის შექმნა
-   * POST /api/v1/slider
-   * Body: FormData { file, title (JSON string), description (JSON string) }
-   */
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB max
+        fileSize: 5 * 1024 * 1024, // 5MB
       },
     }),
   )
@@ -122,9 +117,11 @@ export class TravelController {
     @Body('title') titleJson: string,
     @Body('description') descriptionJson: string,
   ) {
-    console.log('📨 POST /api/v1/slider - Creating new slider');
+    console.log('📨 POST /api/v1/slider - Received request');
+    console.log('📁 File:', file?.originalname, file?.size);
+    console.log('📝 Title JSON:', titleJson);
+    console.log('📝 Description JSON:', descriptionJson);
 
-    // ვალიდაცია
     if (!file) {
       throw new BadRequestException('ფაილი აუცილებელია');
     }
@@ -133,13 +130,13 @@ export class TravelController {
       throw new BadRequestException('სათაური აუცილებელია');
     }
 
-    // JSON parse
     let title: { en: string; ka: string };
     let description: { en: string; ka: string };
 
     try {
       title = JSON.parse(titleJson);
     } catch (error) {
+      console.error('❌ Title parse error:', error);
       throw new BadRequestException('სათაურის JSON ფორმატი არასწორია');
     }
 
@@ -148,85 +145,46 @@ export class TravelController {
         ? JSON.parse(descriptionJson)
         : { en: '', ka: '' };
     } catch (error) {
+      console.error('❌ Description parse error:', error);
       throw new BadRequestException('აღწერის JSON ფორმატი არასწორია');
     }
 
-    // შემოწმება
     if (!title.en || !title.ka) {
       throw new BadRequestException('სათაური ორივე ენაზე აუცილებელია');
     }
 
-    return this.travelService.createSlider(file, title, description);
+    const result = await this.travelService.createSlider(
+      file,
+      title,
+      description,
+    );
+    console.log('✅ Slider created:', result.id);
+
+    return result;
   }
 
-  /**
-   * ყველა სლაიდერის მოძიება
-   * GET /api/v1/slider
-   */
   @Get()
-  async findAllSliders() {
-    console.log('📨 GET /api/v1/slider - Fetching all sliders');
+  findAll() {
+    console.log('📨 GET /api/v1/slider');
     return this.travelService.findAllSliders();
   }
 
-  /**
-   * ერთი სლაიდერის მოძიება
-   * GET /api/v1/slider/:id
-   */
   @Get(':id')
-  async findOneSlider(@Param('id', ParseIntPipe) id: number) {
-    console.log(`📨 GET /api/v1/slider/${id} - Fetching slider`);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    console.log(`📨 GET /api/v1/slider/${id}`);
     return this.travelService.findOneSlider(id);
   }
 
-  /**
-   * სლაიდერის განახლება
-   * PATCH /api/v1/slider/:id
-   */
   @Patch(':id')
-  async updateSlider(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateSliderDto: UpdateSliderDto,
-  ) {
-    console.log(`📨 PATCH /api/v1/slider/${id} - Updating slider`);
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateSliderDto: any) {
+    console.log(`📨 PATCH /api/v1/slider/${id}`);
     return this.travelService.updateSlider(id, updateSliderDto);
   }
 
-  /**
-   * სლაიდერის წაშლა
-   * DELETE /api/v1/slider/:id
-   */
   @Delete(':id')
-  async deleteSlider(@Param('id', ParseIntPipe) id: number) {
-    console.log(`📨 DELETE /api/v1/slider/${id} - Deleting slider`);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    console.log(`📨 DELETE /api/v1/slider/${id}`);
     await this.travelService.deleteSlider(id);
-    return { message: 'სლაიდერი წარმატებით წაიშალა' };
-  }
-
-  /**
-   * ენის მიხედვით განახლება
-   * PATCH /api/v1/slider/:id/language
-   */
-  @Patch(':id/language')
-  async updateSliderLanguage(
-    @Param('id', ParseIntPipe) id: number,
-    @Body('lang') lang: 'ka' | 'en',
-    @Body('field') field: 'title' | 'description',
-    @Body('value') value: string,
-  ) {
-    console.log(
-      `📨 PATCH /api/v1/slider/${id}/language - Updating ${field} (${lang})`,
-    );
-    return this.travelService.updateSliderLanguage(id, lang, field, value);
-  }
-
-  /**
-   * სლაიდერების რაოდენობის შემოწმება
-   * GET /api/v1/slider/count/info
-   */
-  @Get('count/info')
-  async getSlidersCount() {
-    console.log('📨 GET /api/v1/slider/count/info - Getting slider count');
-    return this.travelService.getSlidersCount();
+    return { message: 'სლაიდერი წაიშალა' };
   }
 }
