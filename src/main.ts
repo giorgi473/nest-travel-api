@@ -10,21 +10,32 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
   app.enableCors();
   // Validation-ის ჩართვა
+  // app.useGlobalPipes(
+  //   new ValidationPipe({
+  //     whitelist: true,
+  //     forbidNonWhitelisted: true,
+  //     transform: true,
+  //   }),
+  // );
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false, // ცვლილება: false-ზე
       transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
     }),
   );
   // app.use(bodyParser.json({ limit: '50mb' }));
   // app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
-  app.use(
-    '/uploads',
-    express.static(path.join(__dirname, '..', 'public', 'uploads')),
-  );
+  // app.use(
+  //   '/uploads',
+  //   express.static(path.join(__dirname, '..', 'public', 'uploads')),
+  // );
+  app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
   app.enableCors({
     origin: [
       'http://localhost:3000',
