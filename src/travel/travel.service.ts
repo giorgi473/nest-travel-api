@@ -249,8 +249,6 @@ import { Slider } from './entities/slider.entity';
 import { CreateSliderDto } from './dto/create-slider.dto';
 import { UpdateSliderDto } from './dto/update-slider.dto';
 import sharp from 'sharp';
-import { promises as fs } from 'fs';
-import { join } from 'path';
 
 @Injectable()
 export class TravelService {
@@ -265,83 +263,103 @@ export class TravelService {
     'gif',
   ];
   private readonly MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-  private readonly TARGET_WIDTH = 800;
-  private readonly COMPRESSION_QUALITY = 70;
-  private readonly UPLOAD_DIR = 'uploads/sliders';
+
+  // Aggressive optimization settings
+  private readonly THUMBNAIL_WIDTH = 400;
+  private readonly THUMBNAIL_QUALITY = 45;
+  private readonly FULL_WIDTH = 800;
+  private readonly FULL_QUALITY = 60;
 
   constructor(
     @InjectRepository(Slider)
     private sliderRepository: Repository<Slider>,
-  ) {
-    this.ensureUploadDirExists();
-  }
+  ) {}
 
-  private async ensureUploadDirExists(): Promise<void> {
+  /**
+   * Aggressive image compression with multiple quality levels
+   */
+  private async compressImage(
+    imageBuffer: Buffer,
+    width: number,
+    quality: number,
+  ): Promise<Buffer> {
     try {
-      await fs.mkdir(this.UPLOAD_DIR, { recursive: true });
+      return await sharp(imageBuffer)
+        .resize({
+          width,
+          withoutEnlargement: true,
+          fit: 'inside',
+        })
+        .webp({
+          quality,
+          effort: 6, // Maximum compression effort
+          smartSubsample: true,
+        })
+        .toBuffer();
     } catch (error) {
-      this.logger.error('Failed to create upload directory:', error);
+      this.logger.error('Sharp compression failed:', error.message);
+      return imageBuffer;
     }
   }
 
-  private async saveImageFile(
+  /**
+   * Create both thumbnail and full-size optimized images
+   */
+  private async processImage(
     base64Data: string,
     extension: string,
-  ): Promise<string> {
+  ): Promise<{
+    thumbnail: string;
+    full: string;
+  }> {
     const imageBuffer = Buffer.from(base64Data, 'base64');
 
     if (imageBuffer.length > this.MAX_IMAGE_SIZE) {
       throw new BadRequestException('სურათის ზომა აღემატება 5MB-ს');
     }
 
-    let processedBuffer: Buffer = imageBuffer;
-
-    // Compress non-SVG images
-    if (extension !== 'svg') {
-      try {
-        processedBuffer = await sharp(imageBuffer)
-          .resize({ width: this.TARGET_WIDTH, withoutEnlargement: true })
-          .webp({ quality: this.COMPRESSION_QUALITY })
-          .toBuffer();
-
-        this.logger.log(
-          `📷 Compressed: ${imageBuffer.length} → ${processedBuffer.length} bytes`,
-        );
-      } catch (error) {
-        this.logger.error('Sharp compression failed:', error.message);
-      }
+    if (extension === 'svg') {
+      // SVG doesn't need compression
+      const svgBase64 = `data:image/svg+xml;base64,${imageBuffer.toString('base64')}`;
+      return { thumbnail: svgBase64, full: svgBase64 };
     }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(7);
-    const finalExtension = extension === 'svg' ? 'svg' : 'webp';
-    const filename = `${timestamp}-${random}.${finalExtension}`;
-    const filepath = join(this.UPLOAD_DIR, filename);
+    // Create thumbnail (ultra compressed)
+    const thumbnailBuffer = await this.compressImage(
+      imageBuffer,
+      this.THUMBNAIL_WIDTH,
+      this.THUMBNAIL_QUALITY,
+    );
 
-    // Save file
-    await fs.writeFile(filepath, processedBuffer);
+    // Create full image (moderately compressed)
+    const fullBuffer = await this.compressImage(
+      imageBuffer,
+      this.FULL_WIDTH,
+      this.FULL_QUALITY,
+    );
 
-    return `/${filepath}`;
-  }
+    this.logger.log(
+      `📷 Original: ${imageBuffer.length} bytes → ` +
+        `Thumbnail: ${thumbnailBuffer.length} bytes (${Math.round((thumbnailBuffer.length / imageBuffer.length) * 100)}%) → ` +
+        `Full: ${fullBuffer.length} bytes (${Math.round((fullBuffer.length / imageBuffer.length) * 100)}%)`,
+    );
 
-  private async deleteImageFile(imagePath: string): Promise<void> {
-    try {
-      if (imagePath && imagePath.startsWith('/uploads/')) {
-        const filepath = imagePath.substring(1); // Remove leading /
-        await fs.unlink(filepath);
-        this.logger.log(`🗑️ Deleted file: ${filepath}`);
-      }
-    } catch (error) {
-      this.logger.error('Failed to delete image file:', error.message);
-    }
+    return {
+      thumbnail: `data:image/webp;base64,${thumbnailBuffer.toString('base64')}`,
+      full: `data:image/webp;base64,${fullBuffer.toString('base64')}`,
+    };
   }
 
   async createSlider(createSliderDto: CreateSliderDto): Promise<Slider> {
     this.logger.log('=== 🚀 createSlider START ===');
 
     try {
+      this.logger.log(`📦 DTO received`);
+      this.logger.log(`📦 Has src: ${!!createSliderDto.src}`);
+      this.logger.log(`📦 Src length: ${createSliderDto.src?.length || 0}`);
+
       const count = await this.sliderRepository.count();
+      this.logger.log(`📊 Current sliders: ${count}/${this.MAX_SLIDERS}`);
 
       if (count >= this.MAX_SLIDERS) {
         throw new BadRequestException(
@@ -353,6 +371,7 @@ export class TravelService {
         !createSliderDto.src ||
         !createSliderDto.src.startsWith('data:image/')
       ) {
+        this.logger.error('❌ Invalid base64 format');
         throw new BadRequestException('სურათის ფორმატი არასწორია');
       }
 
@@ -361,31 +380,44 @@ export class TravelService {
       );
 
       if (!matches) {
+        this.logger.error(`❌ Regex failed for base64 string`);
         throw new BadRequestException('Base64 ფორმატი არასწორია');
       }
 
       const [, mimeType, base64Data] = matches;
       const extension = mimeType.replace('svg+xml', 'svg').toLowerCase();
 
+      this.logger.log(`📝 File type: ${extension}`);
+
       if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
+        this.logger.error(`❌ Invalid extension: ${extension}`);
         throw new BadRequestException(
           `დაშვებულია: ${this.ALLOWED_EXTENSIONS.join(', ')}`,
         );
       }
 
-      // Save image as file and get path
-      const imagePath = await this.saveImageFile(base64Data, extension);
+      // Process image with aggressive compression
+      const { thumbnail, full } = await this.processImage(
+        base64Data,
+        extension,
+      );
 
+      // Store thumbnail in main src (for list views)
+      // Store full image in a separate field if needed, or just use thumbnail
       const sliderData = {
-        src: imagePath,
+        src: thumbnail, // Use thumbnail by default for faster loading
         title: createSliderDto.title,
         description: createSliderDto.description,
       };
+
+      this.logger.log(`💾 Preparing to save slider`);
 
       const slider = this.sliderRepository.create(sliderData);
       const savedSlider = await this.sliderRepository.save(slider);
 
       this.logger.log(`✅ Slider saved with ID: ${savedSlider.id}`);
+      this.logger.log('=== ✨ createSlider END (SUCCESS) ===');
+
       return savedSlider;
     } catch (error) {
       this.logger.error('❌ Error in createSlider:', error.message);
@@ -395,6 +427,7 @@ export class TravelService {
       ) {
         throw error;
       }
+      this.logger.error('❌ Full error:', JSON.stringify(error, null, 2));
       throw new BadRequestException(
         'სლაიდერის შენახვა ვერ მოხერხდა: ' + error.message,
       );
@@ -456,11 +489,9 @@ export class TravelService {
           );
         }
 
-        // Delete old image
-        await this.deleteImageFile(slider.src);
-
-        // Save new image
-        slider.src = await this.saveImageFile(base64Data, extension);
+        // Process with aggressive compression
+        const { thumbnail } = await this.processImage(base64Data, extension);
+        slider.src = thumbnail;
       }
 
       if (updateSliderDto.title) {
@@ -486,13 +517,7 @@ export class TravelService {
   async deleteSlider(id: number): Promise<void> {
     try {
       const slider = await this.findOneSlider(id);
-
-      // Delete image file
-      await this.deleteImageFile(slider.src);
-
-      // Delete from database
       await this.sliderRepository.delete(id);
-
       this.logger.log(`🗑️ Slider ${id} deleted`);
     } catch (error) {
       if (error instanceof NotFoundException) {
