@@ -13,7 +13,7 @@ import { UpdateSliderDto } from './dto/update-slider.dto';
 @Injectable()
 export class TravelService {
   private readonly logger = new Logger(TravelService.name);
-  private readonly MAX_SLIDERS = 4;
+  private readonly MAX_SLIDERS = 3;
   private readonly ALLOWED_EXTENSIONS = [
     'jpeg',
     'png',
