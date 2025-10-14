@@ -39,15 +39,12 @@
 //   providers: [AppService, TravelService],
 // })
 // export class AppModule {}
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { TravelModule } from './travel/travel.module';
-import { DestinationModule } from './destination/destination.module';
-import { SeasonalAdventuresModule } from './seasonal-adventures/seasonal-adventures.module';
-import { GeorgianGastronomyModule } from './georgian-gastronomy/georgian-gastronomy.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 
@@ -67,7 +64,7 @@ import { join } from 'path';
       ssl: {
         rejectUnauthorized: false,
       },
-      logging: ['error', 'warn'],
+      logging: true, // Enable all SQL logging
     }),
 
     ServeStaticModule.forRoot({
@@ -80,11 +77,14 @@ import { join } from 'path';
     }),
 
     TravelModule,
-    DestinationModule,
-    SeasonalAdventuresModule,
-    GeorgianGastronomyModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule {
+  private readonly logger = new Logger(AppModule.name);
+
+  constructor() {
+    this.logger.log('✅ AppModule initialized');
+  }
+}

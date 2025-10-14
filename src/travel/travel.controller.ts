@@ -107,7 +107,21 @@ export class TravelController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createSliderDto: CreateSliderDto) {
-    return this.travelService.createSlider(createSliderDto);
+    console.log('🎯 Controller: Received POST request');
+    console.log('🎯 Body type:', typeof createSliderDto);
+    console.log('🎯 Body keys:', Object.keys(createSliderDto));
+    console.log('🎯 Has src:', !!createSliderDto.src);
+    console.log('🎯 Has title:', !!createSliderDto.title);
+    console.log('🎯 Has description:', !!createSliderDto.description);
+
+    try {
+      const result = await this.travelService.createSlider(createSliderDto);
+      console.log('✅ Controller: Success');
+      return result;
+    } catch (error) {
+      console.error('❌ Controller Error:', error);
+      throw error;
+    }
   }
 
   @Get()

@@ -247,10 +247,12 @@
 //     };
 //   }
 // }
+
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -262,6 +264,7 @@ import * as path from 'path';
 
 @Injectable()
 export class TravelService {
+  private readonly logger = new Logger(TravelService.name);
   private readonly MAX_SLIDERS = 4;
   private readonly ALLOWED_EXTENSIONS = [
     'jpeg',
@@ -278,16 +281,22 @@ export class TravelService {
   ) {}
 
   async createSlider(createSliderDto: CreateSliderDto): Promise<Slider> {
-    console.log('=== createSlider დაწყება ===');
-    console.log('მიღებული DTO:', {
-      srcLength: createSliderDto.src?.length,
-      srcPreview: createSliderDto.src?.substring(0, 50),
-      title: createSliderDto.title,
-      description: createSliderDto.description,
-    });
+    this.logger.log('=== 🚀 createSlider START ===');
 
+    // Log incoming data
+    this.logger.log(`📦 DTO Type: ${typeof createSliderDto}`);
+    this.logger.log(`📦 DTO Keys: ${Object.keys(createSliderDto).join(', ')}`);
+    this.logger.log(`📦 Has src: ${!!createSliderDto.src}`);
+    this.logger.log(`📦 Src length: ${createSliderDto.src?.length}`);
+    this.logger.log(`📦 Src preview: ${createSliderDto.src?.substring(0, 50)}`);
+    this.logger.log(`📦 Title: ${JSON.stringify(createSliderDto.title)}`);
+    this.logger.log(
+      `📦 Description: ${JSON.stringify(createSliderDto.description)}`,
+    );
+
+    // Check slider count
     const count = await this.sliderRepository.count();
-    console.log(`სლაიდერების რაოდენობა: ${count}/${this.MAX_SLIDERS}`);
+    this.logger.log(`📊 Current sliders: ${count}/${this.MAX_SLIDERS}`);
 
     if (count >= this.MAX_SLIDERS) {
       throw new BadRequestException(
@@ -295,22 +304,23 @@ export class TravelService {
       );
     }
 
+    // Validate base64
     if (
       !createSliderDto.src ||
       !createSliderDto.src.startsWith('data:image/')
     ) {
-      console.error('არასწორი base64 ფორმატი');
+      this.logger.error('❌ Invalid base64 format');
       throw new BadRequestException('სურათის ფორმატი არასწორია');
     }
 
+    // Parse base64
     const matches = createSliderDto.src.match(
       /^data:image\/([a-zA-Z0-9+-]+);base64,(.+)$/,
     );
 
     if (!matches) {
-      console.error(
-        'Regex ვერ დაემთხვა:',
-        createSliderDto.src.substring(0, 100),
+      this.logger.error(
+        `❌ Regex failed: ${createSliderDto.src.substring(0, 100)}`,
       );
       throw new BadRequestException('Base64 ფორმატი არასწორია');
     }
@@ -318,60 +328,66 @@ export class TravelService {
     const [, mimeType, base64Data] = matches;
     const extension = mimeType.replace('svg+xml', 'svg').toLowerCase();
 
-    console.log('ფაილის ტიპი:', extension);
+    this.logger.log(`📝 File type: ${extension}`);
 
     if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
-      console.error('არადაშვებული ფორმატი:', extension);
+      this.logger.error(`❌ Invalid extension: ${extension}`);
       throw new BadRequestException(
         `დაშვებულია: ${this.ALLOWED_EXTENSIONS.join(', ')}`,
       );
     }
 
+    // Decode base64
     let buffer: Buffer;
     try {
       buffer = Buffer.from(base64Data, 'base64');
-      console.log('Buffer შეიქმნა, ზომა:', buffer.length, 'ბაიტი');
+      this.logger.log(`✅ Buffer created, size: ${buffer.length} bytes`);
     } catch (error) {
-      console.error('Base64 დეკოდირების შეცდომა:', error);
+      this.logger.error('❌ Base64 decode error:', error);
       throw new BadRequestException('Base64 დეკოდირება ვერ მოხერხდა');
     }
 
+    // Save file
     const fileName = `slider-${Date.now()}.${extension}`;
     const uploadDir = path.join(process.cwd(), 'uploads');
     const filePath = path.join(uploadDir, fileName);
 
-    console.log('ფაილის მისამართი:', filePath);
+    this.logger.log(`💾 File path: ${filePath}`);
 
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
-      console.log('uploads ფოლდერი შეიქმნა');
+      this.logger.log('📁 Created uploads folder');
     }
 
     try {
       fs.writeFileSync(filePath, buffer);
-      console.log('ფაილი წარმატებით შეინახა');
+      this.logger.log('✅ File saved successfully');
     } catch (error) {
-      console.error('ფაილის შენახვის შეცდომა:', error);
+      this.logger.error('❌ File save error:', error);
       throw new BadRequestException('ფაილის შენახვა ვერ მოხერხდა');
     }
 
+    // Save to database
     const sliderData = {
       src: `/uploads/${fileName}`,
       title: createSliderDto.title,
       description: createSliderDto.description,
     };
 
-    console.log('ბაზაში შესანახი მონაცემები:', sliderData);
+    this.logger.log(`💾 Saving to DB: ${JSON.stringify(sliderData)}`);
 
     try {
       const slider = this.sliderRepository.create(sliderData);
       const savedSlider = await this.sliderRepository.save(slider);
-      console.log('სლაიდერი წარმატებით შეინახა:', savedSlider.id);
+      this.logger.log(`✅ Slider saved with ID: ${savedSlider.id}`);
+      this.logger.log('=== ✨ createSlider END (SUCCESS) ===');
       return savedSlider;
     } catch (error) {
-      console.error('ბაზაში შენახვის შეცდომა:', error);
+      this.logger.error('❌ Database save error:', error);
+      // Delete file if DB save fails
       try {
         fs.unlinkSync(filePath);
+        this.logger.log('🗑️ Cleaned up file after DB error');
       } catch {}
       throw new BadRequestException('სლაიდერის შენახვა ვერ მოხერხდა');
     }
@@ -430,7 +446,7 @@ export class TravelService {
           try {
             fs.unlinkSync(oldFilePath);
           } catch (error) {
-            console.error('ძველი ფაილის წაშლის შეცდომა:', error);
+            this.logger.error('❌ Old file delete error:', error);
           }
         }
       }
@@ -439,10 +455,10 @@ export class TravelService {
     }
 
     if (updateSliderDto.title) {
-      slider.title = updateSliderDto.title;
+      slider.title = updateSliderDto.title as any;
     }
     if (updateSliderDto.description) {
-      slider.description = updateSliderDto.description;
+      slider.description = updateSliderDto.description as any;
     }
 
     return this.sliderRepository.save(slider);
@@ -456,9 +472,9 @@ export class TravelService {
       if (fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);
-          console.log('ფაილი წაიშალა:', slider.src);
+          this.logger.log(`🗑️ File deleted: ${slider.src}`);
         } catch (error) {
-          console.error('ფაილის წაშლის შეცდომა:', error);
+          this.logger.error('❌ File delete error:', error);
         }
       }
     }

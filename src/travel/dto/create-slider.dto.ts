@@ -15,7 +15,18 @@
 //   })
 //   description: { en: string; ka: string };
 // }
-import { IsNotEmpty, IsObject, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class LangText {
+  @IsString()
+  @IsNotEmpty()
+  en: string;
+
+  @IsString()
+  @IsNotEmpty()
+  ka: string;
+}
 
 export class CreateSliderDto {
   @IsNotEmpty({ message: 'სურათის base64 ფორმატი აუცილებელია' })
@@ -23,12 +34,12 @@ export class CreateSliderDto {
   src: string;
 
   @IsNotEmpty({ message: 'სათაური აუცილებელია' })
-  @IsObject({ message: 'title უნდა იყოს ობიექტი { en: string, ka: string }' })
-  title: { en: string; ka: string };
+  @ValidateNested()
+  @Type(() => LangText)
+  title: LangText;
 
   @IsNotEmpty({ message: 'აღწერა აუცილებელია' })
-  @IsObject({
-    message: 'description უნდა იყოს ობიექტი { en: string, ka: string }',
-  })
-  description: { en: string; ka: string };
+  @ValidateNested()
+  @Type(() => LangText)
+  description: LangText;
 }
