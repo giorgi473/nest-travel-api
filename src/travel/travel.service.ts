@@ -248,7 +248,7 @@ import { Repository } from 'typeorm';
 import { Slider } from './entities/slider.entity';
 import { CreateSliderDto } from './dto/create-slider.dto';
 import { UpdateSliderDto } from './dto/update-slider.dto';
-import { put, del } from '@vercel/blob';
+import { v2 as cloudinary } from 'cloudinary';
 
 @Injectable()
 export class TravelService {
@@ -266,72 +266,19 @@ export class TravelService {
   constructor(
     @InjectRepository(Slider)
     private sliderRepository: Repository<Slider>,
-  ) {}
-
-  // Generate unique filename
-  private generateFilename(extension: string): string {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 15);
-    return `slider-${timestamp}-${random}.${extension}`;
-  }
-
-  // Upload image to Vercel Blob
-  private async uploadImage(base64String: string): Promise<string> {
-    // Parse base64
-    const matches = base64String.match(
-      /^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/,
-    );
-
-    if (!matches) {
-      throw new BadRequestException('Base64 ფორმატი არასწორია');
-    }
-
-    const [, mimeType, base64Data] = matches;
-    const extension = mimeType.replace('svg+xml', 'svg').toLowerCase();
-
-    if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
-      throw new BadRequestException(
-        `დაშვებულია: ${this.ALLOWED_EXTENSIONS.join(', ')}`,
-      );
-    }
-
-    // Generate filename
-    const filename = this.generateFilename(extension);
-
-    // Convert base64 to Buffer
-    const buffer = Buffer.from(base64Data, 'base64');
-
-    this.logger.log(`☁️ Uploading to Vercel Blob: ${filename}`);
-
-    // Upload to Vercel Blob
-    const blob = await put(filename, buffer, {
-      access: 'public',
-      contentType: `image/${extension}`,
+  ) {
+    // Configure Cloudinary
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
     });
-
-    this.logger.log(`✅ Uploaded: ${blob.url}`);
-
-    // Returns short URL like: https://xyz.public.blob.vercel-storage.com/slider-123.jpg
-    return blob.url;
-  }
-
-  // Delete image from Vercel Blob
-  private async deleteImage(imageUrl: string): Promise<void> {
-    try {
-      if (imageUrl.includes('blob.vercel-storage.com')) {
-        await del(imageUrl);
-        this.logger.log(`🗑️ Image deleted from Vercel Blob: ${imageUrl}`);
-      }
-    } catch (error) {
-      this.logger.warn(`⚠️ Failed to delete image: ${imageUrl}`, error);
-    }
   }
 
   async createSlider(createSliderDto: CreateSliderDto): Promise<Slider> {
     this.logger.log('=== 🚀 createSlider START ===');
 
     try {
-      // Log incoming data
       this.logger.log(`📦 DTO received`);
       this.logger.log(`📦 Has src: ${!!createSliderDto.src}`);
 
@@ -354,19 +301,54 @@ export class TravelService {
         throw new BadRequestException('სურათის ფორმატი არასწორია');
       }
 
-      // Upload image to Vercel Blob and get URL
-      const imageUrl = await this.uploadImage(createSliderDto.src);
+      // Parse base64 to validate extension
+      const matches = createSliderDto.src.match(
+        /^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/,
+      );
 
-      this.logger.log(`✅ Image URL: ${imageUrl}`);
+      if (!matches) {
+        this.logger.error(`❌ Regex failed for base64 string`);
+        throw new BadRequestException('Base64 ფორმატი არასწორია');
+      }
 
-      // Create slider with Vercel Blob URL (short URL, ~80 characters)
+      const [, mimeType] = matches;
+      const extension = mimeType.replace('svg+xml', 'svg').toLowerCase();
+
+      this.logger.log(`📝 File type: ${extension}`);
+
+      if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
+        this.logger.error(`❌ Invalid extension: ${extension}`);
+        throw new BadRequestException(
+          `დაშვებულია: ${this.ALLOWED_EXTENSIONS.join(', ')}`,
+        );
+      }
+
+      // Upload to Cloudinary
+      this.logger.log('☁️ Uploading to Cloudinary...');
+
+      const uploadResult = await cloudinary.uploader.upload(
+        createSliderDto.src,
+        {
+          folder: 'sliders',
+          resource_type: 'image',
+          transformation: [
+            { width: 1920, height: 1080, crop: 'limit' },
+            { quality: 'auto:good' },
+            { fetch_format: 'auto' },
+          ],
+        },
+      );
+
+      this.logger.log(`✅ Uploaded to Cloudinary: ${uploadResult.secure_url}`);
+
+      // Create slider with Cloudinary URL (~100 characters)
       const sliderData = {
-        src: imageUrl, // e.g., "https://abc123.public.blob.vercel-storage.com/slider-123.jpg"
+        src: uploadResult.secure_url,
         title: createSliderDto.title,
         description: createSliderDto.description,
       };
 
-      this.logger.log(`💾 Preparing to save slider`);
+      this.logger.log(`💾 Preparing to save slider with URL`);
 
       const slider = this.sliderRepository.create(sliderData);
       const savedSlider = await this.sliderRepository.save(slider);
@@ -430,19 +412,53 @@ export class TravelService {
         updateSliderDto.src &&
         updateSliderDto.src.startsWith('data:image/')
       ) {
-        // Save old image URL for deletion
+        const matches = updateSliderDto.src.match(
+          /^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/,
+        );
+
+        if (!matches) {
+          throw new BadRequestException('Base64 ფორმატი არასწორია');
+        }
+
+        const [, mimeType] = matches;
+        const extension = mimeType.replace('svg+xml', 'svg').toLowerCase();
+
+        if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
+          throw new BadRequestException(
+            `დაშვებულია: ${this.ALLOWED_EXTENSIONS.join(', ')}`,
+          );
+        }
+
+        // Save old URL for deletion
         const oldImageUrl = slider.src;
 
         // Upload new image
-        const newImageUrl = await this.uploadImage(updateSliderDto.src);
-        slider.src = newImageUrl;
+        this.logger.log('☁️ Uploading new image to Cloudinary...');
+        const uploadResult = await cloudinary.uploader.upload(
+          updateSliderDto.src,
+          {
+            folder: 'sliders',
+            resource_type: 'image',
+            transformation: [
+              { width: 1920, height: 1080, crop: 'limit' },
+              { quality: 'auto:good' },
+              { fetch_format: 'auto' },
+            ],
+          },
+        );
 
-        // Delete old image from Vercel Blob
-        if (oldImageUrl) {
-          await this.deleteImage(oldImageUrl);
+        slider.src = uploadResult.secure_url;
+
+        // Delete old image from Cloudinary
+        if (oldImageUrl && oldImageUrl.includes('cloudinary.com')) {
+          try {
+            const publicId = this.extractPublicId(oldImageUrl);
+            await cloudinary.uploader.destroy(publicId);
+            this.logger.log(`🗑️ Old image deleted from Cloudinary`);
+          } catch (err) {
+            this.logger.warn('⚠️ Failed to delete old image:', err);
+          }
         }
-
-        this.logger.log(`✅ Image updated: ${newImageUrl}`);
       }
 
       if (updateSliderDto.title) {
@@ -469,9 +485,15 @@ export class TravelService {
     try {
       const slider = await this.findOneSlider(id);
 
-      // Delete image from Vercel Blob
-      if (slider.src) {
-        await this.deleteImage(slider.src);
+      // Delete from Cloudinary
+      if (slider.src && slider.src.includes('cloudinary.com')) {
+        try {
+          const publicId = this.extractPublicId(slider.src);
+          await cloudinary.uploader.destroy(publicId);
+          this.logger.log(`🗑️ Image deleted from Cloudinary`);
+        } catch (err) {
+          this.logger.warn('⚠️ Failed to delete image from Cloudinary:', err);
+        }
       }
 
       await this.sliderRepository.delete(id);
@@ -501,5 +523,20 @@ export class TravelService {
       this.logger.error('❌ Error in getSlidersCount:', error);
       throw new BadRequestException('რაოდენობის ჩატვირთვა ვერ მოხერხდა');
     }
+  }
+
+  // Helper: Extract public_id from Cloudinary URL
+  private extractPublicId(url: string): string {
+    // URL format: https://res.cloudinary.com/{cloud_name}/image/upload/v123456/sliders/filename.jpg
+    const parts = url.split('/');
+    const uploadIndex = parts.indexOf('upload');
+    if (uploadIndex === -1) return '';
+
+    // Get everything after /upload/vXXXXXX/
+    const pathParts = parts.slice(uploadIndex + 2);
+    const fullPath = pathParts.join('/');
+
+    // Remove file extension
+    return fullPath.replace(/\.[^/.]+$/, '');
   }
 }
