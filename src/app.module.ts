@@ -27,8 +27,6 @@ import { TravelController } from './travel/travel.controller';
     }),
     TypeOrmModule.forFeature([Slider]),
     ServeStaticModule.forRoot({
-      // rootPath: join(process.cwd(), 'Uploads'), // uploads ფოლდერი პროექტის root-ში
-      // serveRoot: '/uploads', // URL-ის პრეფიქსი
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
     }),

@@ -25,11 +25,6 @@ async function bootstrap() {
     '/uploads',
     express.static(path.join(__dirname, '..', 'public', 'uploads')),
   );
-  // app.enableCors({
-  //   origin: 'http://localhost:3000', // Allow your frontend origin
-  //   methods: 'GET,POST,PUT,DELETE',
-  //   allowedHeaders: 'Content-Type, Authorization',
-  // });
   app.enableCors({
     origin: [
       'http://localhost:3000',
