@@ -381,18 +381,45 @@ export class TravelService {
 
     try {
       const slider = this.sliderRepository.create(sliderData);
+      this.logger.log(`✅ Slider entity created: ${JSON.stringify(slider)}`);
       const savedSlider = await this.sliderRepository.save(slider);
       this.logger.log(`✅ Slider saved with ID: ${savedSlider.id}`);
       this.logger.log('=== ✨ createSlider END (SUCCESS) ===');
       return savedSlider;
     } catch (error) {
       this.logger.error('❌ Database save error:', error.message, error.stack);
-      // Delete file if DB save fails
+      this.logger.error('❌ Failed slider data:', JSON.stringify(sliderData));
       try {
         fs.unlinkSync(filePath);
         this.logger.log('🗑️ Cleaned up file after DB error');
-      } catch {}
-      throw new BadRequestException('სლაიდერის შენახვა ვერ მოხერხდა');
+      } catch (cleanupError) {
+        this.logger.error(
+          '❌ File cleanup error:',
+          cleanupError.message,
+          cleanupError.stack,
+        );
+      }
+      throw new BadRequestException(
+        `სლაიდერის შენახვა ვერ მოხერხდა: ${error.message}`,
+      );
+    }
+  }
+
+  async testSliderSave(): Promise<Slider> {
+    const testData = {
+      src: '/uploads/test-image.webp',
+      title: { en: 'Test Title', ka: 'ტესტის სათაური' },
+      description: { en: 'Test Description', ka: 'ტესტის აღწერა' },
+    };
+    this.logger.log(`💾 Test save data: ${JSON.stringify(testData)}`);
+    try {
+      const slider = this.sliderRepository.create(testData);
+      const savedSlider = await this.sliderRepository.save(slider);
+      this.logger.log(`✅ Test slider saved with ID: ${savedSlider.id}`);
+      return savedSlider;
+    } catch (error) {
+      this.logger.error('❌ Test save error:', error.message, error.stack);
+      throw new BadRequestException(`Test save failed: ${error.message}`);
     }
   }
 
@@ -461,11 +488,18 @@ export class TravelService {
       slider.src = `/uploads/${fileName}`;
     }
 
-    if (updateSliderDto.title) {
-      slider.title = updateSliderDto.title as any;
+    if (updateSliderDto.titleEn || updateSliderDto.titleKa) {
+      slider.title = {
+        en: updateSliderDto.titleEn || slider.title.en,
+        ka: updateSliderDto.titleKa || slider.title.ka,
+      };
     }
-    if (updateSliderDto.description) {
-      slider.description = updateSliderDto.description as any;
+
+    if (updateSliderDto.descriptionEn || updateSliderDto.descriptionKa) {
+      slider.description = {
+        en: updateSliderDto.descriptionEn || slider.description.en,
+        ka: updateSliderDto.descriptionKa || slider.description.ka,
+      };
     }
 
     return this.sliderRepository.save(slider);

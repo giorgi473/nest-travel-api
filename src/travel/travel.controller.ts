@@ -113,29 +113,46 @@ import {
 import { TravelService } from './travel.service';
 import { CreateSliderDto } from './dto/create-slider.dto';
 import { UpdateSliderDto } from './dto/update-slider.dto';
+import { Logger } from '@nestjs/common';
 
 @Controller('slider')
 export class TravelController {
+  private readonly logger = new Logger(TravelController.name);
+
   constructor(private readonly travelService: TravelService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createSliderDto: CreateSliderDto) {
-    console.log('🎯 Controller: Received POST request');
-    console.log('🎯 Body type:', typeof createSliderDto);
-    console.log('🎯 Body keys:', Object.keys(createSliderDto));
-    console.log('🎯 Has src:', !!createSliderDto.src);
-    console.log('🎯 Has titleEn:', !!createSliderDto.titleEn);
-    console.log('🎯 Has titleKa:', !!createSliderDto.titleKa);
-    console.log('🎯 Has descriptionEn:', !!createSliderDto.descriptionEn);
-    console.log('🎯 Has descriptionKa:', !!createSliderDto.descriptionKa);
+    this.logger.log('🎯 Controller: Received POST request');
+    this.logger.log('🎯 Body type:', typeof createSliderDto);
+    this.logger.log('🎯 Body keys:', Object.keys(createSliderDto));
+    this.logger.log('🎯 Has src:', !!createSliderDto.src);
+    this.logger.log('🎯 Has titleEn:', !!createSliderDto.titleEn);
+    this.logger.log('🎯 Has titleKa:', !!createSliderDto.titleKa);
+    this.logger.log('🎯 Has descriptionEn:', !!createSliderDto.descriptionEn);
+    this.logger.log('🎯 Has descriptionKa:', !!createSliderDto.descriptionKa);
 
     try {
       const result = await this.travelService.createSlider(createSliderDto);
-      console.log('✅ Controller: Success');
+      this.logger.log('✅ Controller: Success');
       return { success: true, data: result };
     } catch (error) {
-      console.error('❌ Controller Error:', error.message, error.stack);
+      this.logger.error('❌ Controller Error:', error.message, error.stack);
+      return {
+        success: false,
+        error: error.message || 'Internal server error',
+      };
+    }
+  }
+
+  @Get('test-save')
+  async testSave() {
+    try {
+      const result = await this.travelService.testSliderSave();
+      return { success: true, data: result };
+    } catch (error) {
+      this.logger.error('❌ Test Save Error:', error.message, error.stack);
       return {
         success: false,
         error: error.message || 'Internal server error',
