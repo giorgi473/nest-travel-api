@@ -1,7 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-// import * as bodyParser from 'body-parser';
 import * as express from 'express';
 import * as path from 'path';
 import { json, urlencoded } from 'express';
@@ -9,32 +8,21 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api/v1');
   app.enableCors();
-  // Validation-ის ჩართვა
-  // app.useGlobalPipes(
-  //   new ValidationPipe({
-  //     whitelist: true,
-  //     forbidNonWhitelisted: true,
-  //     transform: true,
-  //   }),
-  // );
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false, // ცვლილება: false-ზე
+      forbidNonWhitelisted: false,
       transform: true,
       transformOptions: {
         enableImplicitConversion: true,
       },
     }),
   );
-  // app.use(bodyParser.json({ limit: '50mb' }));
-  // app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
-  // app.use(
-  //   '/uploads',
-  //   express.static(path.join(__dirname, '..', 'public', 'uploads')),
-  // );
+
   app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
   app.enableCors({
     origin: [

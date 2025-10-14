@@ -16,7 +16,7 @@
 //   @PrimaryGeneratedColumn()
 //   id: number;
 
-//   @Column({ type: 'varchar', length: 500 })
+//   @Column({ type: 'text' }) // Changed from varchar(500) to text for base64
 //   src: string;
 
 //   @Column({ type: 'jsonb' })
@@ -49,7 +49,7 @@ export class Slider {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'text' }) // Changed from varchar(500) to text for base64
+  @Column({ type: 'varchar', length: 500 }) // Cloudinary URL
   src: string;
 
   @Column({ type: 'jsonb' })
