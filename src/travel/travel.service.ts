@@ -253,7 +253,7 @@ import sharp from 'sharp';
 @Injectable()
 export class TravelService {
   private readonly logger = new Logger(TravelService.name);
-  private readonly MAX_SLIDERS = 3;
+  private readonly MAX_SLIDERS = 4;
   private readonly ALLOWED_EXTENSIONS = [
     'jpeg',
     'png',
@@ -263,7 +263,8 @@ export class TravelService {
     'gif',
   ];
   private readonly MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-  private readonly TARGET_WIDTH = 800; // სურათის სიგანე resize-ისთვის
+  private readonly TARGET_WIDTH = 600; // შემცირებული 800-დან
+  private readonly COMPRESSION_QUALITY = 60; // შემცირებული 80-დან
 
   constructor(
     @InjectRepository(Slider)
@@ -274,7 +275,6 @@ export class TravelService {
     this.logger.log('=== 🚀 createSlider START ===');
 
     try {
-      // Log incoming data
       this.logger.log(`📦 DTO received`);
       this.logger.log(`📦 Has src: ${!!createSliderDto.src}`);
       this.logger.log(`📦 Src length: ${createSliderDto.src?.length || 0}`);
@@ -283,7 +283,6 @@ export class TravelService {
         `📦 Description: ${JSON.stringify(createSliderDto.description)}`,
       );
 
-      // Check slider count
       const count = await this.sliderRepository.count();
       this.logger.log(`📊 Current sliders: ${count}/${this.MAX_SLIDERS}`);
 
@@ -293,7 +292,6 @@ export class TravelService {
         );
       }
 
-      // Validate base64
       if (
         !createSliderDto.src ||
         !createSliderDto.src.startsWith('data:image/')
@@ -302,7 +300,6 @@ export class TravelService {
         throw new BadRequestException('სურათის ფორმატი არასწორია');
       }
 
-      // Parse base64
       const matches = createSliderDto.src.match(
         /^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/,
       );
@@ -324,25 +321,24 @@ export class TravelService {
         );
       }
 
-      // Convert base64 to buffer
       const imageBuffer = Buffer.from(base64Data, 'base64');
 
-      // Check initial size
       if (imageBuffer.length > this.MAX_IMAGE_SIZE) {
         this.logger.error('❌ Image size exceeds 5MB');
         throw new BadRequestException('სურათის ზომა აღემატება 5MB-ს');
       }
 
-      // Resize and compress image using sharp with error handling
-      let compressedImage: Buffer = imageBuffer; // Default to original if sharp fails
+      let compressedImage: Buffer = imageBuffer;
       if (extension !== 'svg') {
         try {
           this.logger.log('📷 Starting image compression with sharp');
           compressedImage = await sharp(imageBuffer)
             .resize({ width: this.TARGET_WIDTH, withoutEnlargement: true })
-            .webp({ quality: 80 })
+            .webp({ quality: this.COMPRESSION_QUALITY })
             .toBuffer();
-          this.logger.log('📷 Image compression completed');
+          this.logger.log(
+            `📷 Compression: ${imageBuffer.length} -> ${compressedImage.length} bytes`,
+          );
         } catch (sharpError) {
           this.logger.error(
             '❌ Sharp compression failed, using original image:',
@@ -353,28 +349,22 @@ export class TravelService {
         this.logger.log('📷 SVG image, no compression applied');
       }
 
-      // Convert compressed image back to base64
       const compressedBase64 = `data:image/${
         extension === 'svg' ? 'svg+xml' : 'webp'
       };base64,${compressedImage.toString('base64')}`;
 
       this.logger.log('💾 Storing compressed base64 in database');
 
-      // Create slider with compressed base64
       const sliderData = {
         src: compressedBase64,
         title: createSliderDto.title,
         description: createSliderDto.description,
       };
 
-      this.logger.log(`💾 Preparing to save slider`);
-
       const slider = this.sliderRepository.create(sliderData);
-
       this.logger.log(`✅ Slider entity created`);
 
       const savedSlider = await this.sliderRepository.save(slider);
-
       this.logger.log(`✅ Slider saved with ID: ${savedSlider.id}`);
       this.logger.log('=== ✨ createSlider END (SUCCESS) ===');
 
@@ -449,25 +439,24 @@ export class TravelService {
           );
         }
 
-        // Convert base64 to buffer
         const imageBuffer = Buffer.from(base64Data, 'base64');
 
-        // Check size
         if (imageBuffer.length > this.MAX_IMAGE_SIZE) {
           this.logger.error('❌ Image size exceeds 5MB');
           throw new BadRequestException('სურათის ზომა აღემატება 5MB-ს');
         }
 
-        // Resize and compress image using sharp with error handling
-        let compressedImage: Buffer = imageBuffer; // Default to original if sharp fails
+        let compressedImage: Buffer = imageBuffer;
         if (extension !== 'svg') {
           try {
             this.logger.log('📷 Starting image compression with sharp');
             compressedImage = await sharp(imageBuffer)
               .resize({ width: this.TARGET_WIDTH, withoutEnlargement: true })
-              .webp({ quality: 80 })
+              .webp({ quality: this.COMPRESSION_QUALITY })
               .toBuffer();
-            this.logger.log('📷 Image compression completed');
+            this.logger.log(
+              `📷 Compression: ${imageBuffer.length} -> ${compressedImage.length} bytes`,
+            );
           } catch (sharpError) {
             this.logger.error(
               '❌ Sharp compression failed, using original image:',
@@ -478,7 +467,6 @@ export class TravelService {
           this.logger.log('📷 SVG image, no compression applied');
         }
 
-        // Convert back to base64
         slider.src = `data:image/${
           extension === 'svg' ? 'svg+xml' : 'webp'
         };base64,${compressedImage.toString('base64')}`;
