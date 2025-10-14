@@ -249,6 +249,8 @@ import { Slider } from './entities/slider.entity';
 import { CreateSliderDto } from './dto/create-slider.dto';
 import { UpdateSliderDto } from './dto/update-slider.dto';
 import sharp from 'sharp';
+import { promises as fs } from 'fs';
+import { join } from 'path';
 
 @Injectable()
 export class TravelService {
@@ -263,28 +265,83 @@ export class TravelService {
     'gif',
   ];
   private readonly MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-  private readonly TARGET_WIDTH = 600; // შემცირებული 800-დან
-  private readonly COMPRESSION_QUALITY = 60; // შემცირებული 80-დან
+  private readonly TARGET_WIDTH = 800;
+  private readonly COMPRESSION_QUALITY = 70;
+  private readonly UPLOAD_DIR = 'uploads/sliders';
 
   constructor(
     @InjectRepository(Slider)
     private sliderRepository: Repository<Slider>,
-  ) {}
+  ) {
+    this.ensureUploadDirExists();
+  }
+
+  private async ensureUploadDirExists(): Promise<void> {
+    try {
+      await fs.mkdir(this.UPLOAD_DIR, { recursive: true });
+    } catch (error) {
+      this.logger.error('Failed to create upload directory:', error);
+    }
+  }
+
+  private async saveImageFile(
+    base64Data: string,
+    extension: string,
+  ): Promise<string> {
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+
+    if (imageBuffer.length > this.MAX_IMAGE_SIZE) {
+      throw new BadRequestException('სურათის ზომა აღემატება 5MB-ს');
+    }
+
+    let processedBuffer: Buffer = imageBuffer;
+
+    // Compress non-SVG images
+    if (extension !== 'svg') {
+      try {
+        processedBuffer = await sharp(imageBuffer)
+          .resize({ width: this.TARGET_WIDTH, withoutEnlargement: true })
+          .webp({ quality: this.COMPRESSION_QUALITY })
+          .toBuffer();
+
+        this.logger.log(
+          `📷 Compressed: ${imageBuffer.length} → ${processedBuffer.length} bytes`,
+        );
+      } catch (error) {
+        this.logger.error('Sharp compression failed:', error.message);
+      }
+    }
+
+    // Generate unique filename
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(7);
+    const finalExtension = extension === 'svg' ? 'svg' : 'webp';
+    const filename = `${timestamp}-${random}.${finalExtension}`;
+    const filepath = join(this.UPLOAD_DIR, filename);
+
+    // Save file
+    await fs.writeFile(filepath, processedBuffer);
+
+    return `/${filepath}`;
+  }
+
+  private async deleteImageFile(imagePath: string): Promise<void> {
+    try {
+      if (imagePath && imagePath.startsWith('/uploads/')) {
+        const filepath = imagePath.substring(1); // Remove leading /
+        await fs.unlink(filepath);
+        this.logger.log(`🗑️ Deleted file: ${filepath}`);
+      }
+    } catch (error) {
+      this.logger.error('Failed to delete image file:', error.message);
+    }
+  }
 
   async createSlider(createSliderDto: CreateSliderDto): Promise<Slider> {
     this.logger.log('=== 🚀 createSlider START ===');
 
     try {
-      this.logger.log(`📦 DTO received`);
-      this.logger.log(`📦 Has src: ${!!createSliderDto.src}`);
-      this.logger.log(`📦 Src length: ${createSliderDto.src?.length || 0}`);
-      this.logger.log(`📦 Title: ${JSON.stringify(createSliderDto.title)}`);
-      this.logger.log(
-        `📦 Description: ${JSON.stringify(createSliderDto.description)}`,
-      );
-
       const count = await this.sliderRepository.count();
-      this.logger.log(`📊 Current sliders: ${count}/${this.MAX_SLIDERS}`);
 
       if (count >= this.MAX_SLIDERS) {
         throw new BadRequestException(
@@ -296,7 +353,6 @@ export class TravelService {
         !createSliderDto.src ||
         !createSliderDto.src.startsWith('data:image/')
       ) {
-        this.logger.error('❌ Invalid base64 format');
         throw new BadRequestException('სურათის ფორმატი არასწორია');
       }
 
@@ -305,69 +361,31 @@ export class TravelService {
       );
 
       if (!matches) {
-        this.logger.error(`❌ Regex failed for base64 string`);
         throw new BadRequestException('Base64 ფორმატი არასწორია');
       }
 
       const [, mimeType, base64Data] = matches;
       const extension = mimeType.replace('svg+xml', 'svg').toLowerCase();
 
-      this.logger.log(`📝 File type: ${extension}`);
-
       if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
-        this.logger.error(`❌ Invalid extension: ${extension}`);
         throw new BadRequestException(
           `დაშვებულია: ${this.ALLOWED_EXTENSIONS.join(', ')}`,
         );
       }
 
-      const imageBuffer = Buffer.from(base64Data, 'base64');
-
-      if (imageBuffer.length > this.MAX_IMAGE_SIZE) {
-        this.logger.error('❌ Image size exceeds 5MB');
-        throw new BadRequestException('სურათის ზომა აღემატება 5MB-ს');
-      }
-
-      let compressedImage: Buffer = imageBuffer;
-      if (extension !== 'svg') {
-        try {
-          this.logger.log('📷 Starting image compression with sharp');
-          compressedImage = await sharp(imageBuffer)
-            .resize({ width: this.TARGET_WIDTH, withoutEnlargement: true })
-            .webp({ quality: this.COMPRESSION_QUALITY })
-            .toBuffer();
-          this.logger.log(
-            `📷 Compression: ${imageBuffer.length} -> ${compressedImage.length} bytes`,
-          );
-        } catch (sharpError) {
-          this.logger.error(
-            '❌ Sharp compression failed, using original image:',
-            sharpError.message,
-          );
-        }
-      } else {
-        this.logger.log('📷 SVG image, no compression applied');
-      }
-
-      const compressedBase64 = `data:image/${
-        extension === 'svg' ? 'svg+xml' : 'webp'
-      };base64,${compressedImage.toString('base64')}`;
-
-      this.logger.log('💾 Storing compressed base64 in database');
+      // Save image as file and get path
+      const imagePath = await this.saveImageFile(base64Data, extension);
 
       const sliderData = {
-        src: compressedBase64,
+        src: imagePath,
         title: createSliderDto.title,
         description: createSliderDto.description,
       };
 
       const slider = this.sliderRepository.create(sliderData);
-      this.logger.log(`✅ Slider entity created`);
-
       const savedSlider = await this.sliderRepository.save(slider);
-      this.logger.log(`✅ Slider saved with ID: ${savedSlider.id}`);
-      this.logger.log('=== ✨ createSlider END (SUCCESS) ===');
 
+      this.logger.log(`✅ Slider saved with ID: ${savedSlider.id}`);
       return savedSlider;
     } catch (error) {
       this.logger.error('❌ Error in createSlider:', error.message);
@@ -377,7 +395,6 @@ export class TravelService {
       ) {
         throw error;
       }
-      this.logger.error('❌ Full error:', JSON.stringify(error, null, 2));
       throw new BadRequestException(
         'სლაიდერის შენახვა ვერ მოხერხდა: ' + error.message,
       );
@@ -439,37 +456,11 @@ export class TravelService {
           );
         }
 
-        const imageBuffer = Buffer.from(base64Data, 'base64');
+        // Delete old image
+        await this.deleteImageFile(slider.src);
 
-        if (imageBuffer.length > this.MAX_IMAGE_SIZE) {
-          this.logger.error('❌ Image size exceeds 5MB');
-          throw new BadRequestException('სურათის ზომა აღემატება 5MB-ს');
-        }
-
-        let compressedImage: Buffer = imageBuffer;
-        if (extension !== 'svg') {
-          try {
-            this.logger.log('📷 Starting image compression with sharp');
-            compressedImage = await sharp(imageBuffer)
-              .resize({ width: this.TARGET_WIDTH, withoutEnlargement: true })
-              .webp({ quality: this.COMPRESSION_QUALITY })
-              .toBuffer();
-            this.logger.log(
-              `📷 Compression: ${imageBuffer.length} -> ${compressedImage.length} bytes`,
-            );
-          } catch (sharpError) {
-            this.logger.error(
-              '❌ Sharp compression failed, using original image:',
-              sharpError.message,
-            );
-          }
-        } else {
-          this.logger.log('📷 SVG image, no compression applied');
-        }
-
-        slider.src = `data:image/${
-          extension === 'svg' ? 'svg+xml' : 'webp'
-        };base64,${compressedImage.toString('base64')}`;
+        // Save new image
+        slider.src = await this.saveImageFile(base64Data, extension);
       }
 
       if (updateSliderDto.title) {
@@ -495,7 +486,13 @@ export class TravelService {
   async deleteSlider(id: number): Promise<void> {
     try {
       const slider = await this.findOneSlider(id);
+
+      // Delete image file
+      await this.deleteImageFile(slider.src);
+
+      // Delete from database
       await this.sliderRepository.delete(id);
+
       this.logger.log(`🗑️ Slider ${id} deleted`);
     } catch (error) {
       if (error instanceof NotFoundException) {

@@ -39,8 +39,8 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  app.useStaticAssets(join(__dirname, '..', 'public'), {
-    prefix: '/',
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
   });
 
   await app.listen(8000);
