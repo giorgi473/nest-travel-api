@@ -16,7 +16,7 @@
 //   @PrimaryGeneratedColumn()
 //   id: number;
 
-//   @Column({ type: 'varchar', length: 500 }) // File path/URL, 500 is sufficient
+//   @Column({ type: 'varchar', length: 500 })
 //   src: string;
 
 //   @Column({ type: 'jsonb' })
@@ -33,34 +33,29 @@
 // }
 import {
   Entity,
-  PrimaryGeneratedColumn,
   Column,
+  PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
-interface LangText {
-  ka: string;
-  en: string;
-}
-
-@Entity('slider')
+@Entity()
 export class Slider {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 500 })
+  @Column()
   src: string;
 
-  @Column({ type: 'jsonb' })
-  title: LangText;
+  @Column('jsonb')
+  title: { en: string; ka: string };
 
-  @Column({ type: 'jsonb' })
-  description: LangText;
+  @Column('jsonb')
+  description: { en: string; ka: string };
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

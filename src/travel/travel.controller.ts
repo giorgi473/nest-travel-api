@@ -22,7 +22,21 @@
 //   @Post()
 //   @HttpCode(HttpStatus.CREATED)
 //   async create(@Body() createSliderDto: CreateSliderDto) {
-//     return this.travelService.createSlider(createSliderDto);
+//     console.log('🎯 Controller: Received POST request');
+//     console.log('🎯 Body type:', typeof createSliderDto);
+//     console.log('🎯 Body keys:', Object.keys(createSliderDto));
+//     console.log('🎯 Has src:', !!createSliderDto.src);
+//     console.log('🎯 Has title:', !!createSliderDto.title);
+//     console.log('🎯 Has description:', !!createSliderDto.description);
+
+//     try {
+//       const result = await this.travelService.createSlider(createSliderDto);
+//       console.log('✅ Controller: Success');
+//       return result;
+//     } catch (error) {
+//       console.error('❌ Controller Error:', error);
+//       throw error;
+//     }
 //   }
 
 //   @Get()
@@ -111,16 +125,21 @@ export class TravelController {
     console.log('🎯 Body type:', typeof createSliderDto);
     console.log('🎯 Body keys:', Object.keys(createSliderDto));
     console.log('🎯 Has src:', !!createSliderDto.src);
-    console.log('🎯 Has title:', !!createSliderDto.title);
-    console.log('🎯 Has description:', !!createSliderDto.description);
+    console.log('🎯 Has titleEn:', !!createSliderDto.titleEn);
+    console.log('🎯 Has titleKa:', !!createSliderDto.titleKa);
+    console.log('🎯 Has descriptionEn:', !!createSliderDto.descriptionEn);
+    console.log('🎯 Has descriptionKa:', !!createSliderDto.descriptionKa);
 
     try {
       const result = await this.travelService.createSlider(createSliderDto);
       console.log('✅ Controller: Success');
-      return result;
+      return { success: true, data: result };
     } catch (error) {
-      console.error('❌ Controller Error:', error);
-      throw error;
+      console.error('❌ Controller Error:', error.message, error.stack);
+      return {
+        success: false,
+        error: error.message || 'Internal server error',
+      };
     }
   }
 

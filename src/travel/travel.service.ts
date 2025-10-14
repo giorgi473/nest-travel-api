@@ -2,6 +2,7 @@
 //   Injectable,
 //   NotFoundException,
 //   BadRequestException,
+//   Logger,
 // } from '@nestjs/common';
 // import { InjectRepository } from '@nestjs/typeorm';
 // import { Repository } from 'typeorm';
@@ -13,6 +14,7 @@
 
 // @Injectable()
 // export class TravelService {
+//   private readonly logger = new Logger(TravelService.name);
 //   private readonly MAX_SLIDERS = 4;
 //   private readonly ALLOWED_EXTENSIONS = [
 //     'jpeg',
@@ -29,82 +31,120 @@
 //   ) {}
 
 //   async createSlider(createSliderDto: CreateSliderDto): Promise<Slider> {
+//     this.logger.log('=== 🚀 createSlider START ===');
+
+//     // Log incoming data
+//     this.logger.log(`📦 DTO Type: ${typeof createSliderDto}`);
+//     this.logger.log(`📦 DTO Keys: ${Object.keys(createSliderDto).join(', ')}`);
+//     this.logger.log(`📦 Has src: ${!!createSliderDto.src}`);
+//     this.logger.log(`📦 Src length: ${createSliderDto.src?.length}`);
+//     this.logger.log(`📦 Src preview: ${createSliderDto.src?.substring(0, 50)}`);
+//     this.logger.log(`📦 Title: ${JSON.stringify(createSliderDto.title)}`);
+//     this.logger.log(
+//       `📦 Description: ${JSON.stringify(createSliderDto.description)}`,
+//     );
+
+//     // Check slider count
 //     const count = await this.sliderRepository.count();
+//     this.logger.log(`📊 Current sliders: ${count}/${this.MAX_SLIDERS}`);
+
 //     if (count >= this.MAX_SLIDERS) {
 //       throw new BadRequestException(
-//         `შეგიძლიათ შექმნათ მაქსიმუმ ${this.MAX_SLIDERS} სლაიდერი.`,
+//         `შეგიძლიათ შექმნათ მაქსიმუმ ${this.MAX_SLIDERS} სლაიდერი`,
 //       );
 //     }
 
-//     console.log(
-//       'მიღებული base64 (პირველი 50 სიმბოლო):',
-//       createSliderDto.src?.substring(0, 50),
-//     );
+//     // Validate base64
 //     if (
 //       !createSliderDto.src ||
 //       !createSliderDto.src.startsWith('data:image/')
 //     ) {
-//       throw new BadRequestException(
-//         'სურათის base64 ფორმატი არასწორია ან არ არსებობს',
-//       );
+//       this.logger.error('❌ Invalid base64 format');
+//       throw new BadRequestException('სურათის ფორმატი არასწორია');
 //     }
 
+//     // Parse base64
 //     const matches = createSliderDto.src.match(
-//       /^data:image\/([a-zA-Z0-9-+\/]+);base64,(.+)$/,
+//       /^data:image\/([a-zA-Z0-9+-]+);base64,(.+)$/,
 //     );
+
 //     if (!matches) {
-//       console.error('Regex შეცდომა:', createSliderDto.src?.substring(0, 100));
-//       throw new BadRequestException('Base64 სტრიქონის ფორმატი არასწორია');
+//       this.logger.error(
+//         `❌ Regex failed: ${createSliderDto.src.substring(0, 100)}`,
+//       );
+//       throw new BadRequestException('Base64 ფორმატი არასწორია');
 //     }
 
-//     const extension = matches[1].toLowerCase();
-//     const normalizedExtension = extension === 'svg+xml' ? 'svg' : extension;
-//     if (!this.ALLOWED_EXTENSIONS.includes(normalizedExtension)) {
-//       console.error('არადაშვებული ფაილის ტიპი:', extension);
+//     const [, mimeType, base64Data] = matches;
+//     const extension = mimeType.replace('svg+xml', 'svg').toLowerCase();
+
+//     this.logger.log(`📝 File type: ${extension}`);
+
+//     if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
+//       this.logger.error(`❌ Invalid extension: ${extension}`);
 //       throw new BadRequestException(
-//         `დაშვებულია მხოლოდ ${this.ALLOWED_EXTENSIONS.join(', ')} ფორმატები`,
+//         `დაშვებულია: ${this.ALLOWED_EXTENSIONS.join(', ')}`,
 //       );
 //     }
 
-//     const base64Data = matches[2];
+//     // Decode base64
 //     let buffer: Buffer;
 //     try {
 //       buffer = Buffer.from(base64Data, 'base64');
+//       this.logger.log(`✅ Buffer created, size: ${buffer.length} bytes`);
 //     } catch (error) {
-//       console.error('Base64 დეკოდირების შეცდომა:', error);
-//       throw new BadRequestException(
-//         'Base64 მონაცემების დეკოდირება ვერ მოხერხდა',
-//       );
+//       this.logger.error('❌ Base64 decode error:', error);
+//       throw new BadRequestException('Base64 დეკოდირება ვერ მოხერხდა');
 //     }
 
-//     const fileName = `slider-${Date.now()}.${normalizedExtension}`;
-//     const uploadDir = path.join(process.cwd(), 'Uploads');
+//     // Save file
+//     const fileName = `slider-${Date.now()}.${extension}`;
+//     const uploadDir = path.join(process.cwd(), 'uploads');
 //     const filePath = path.join(uploadDir, fileName);
 
-//     console.log('ფაილის შენახვის მისამართი:', filePath);
+//     this.logger.log(`💾 File path: ${filePath}`);
 
 //     if (!fs.existsSync(uploadDir)) {
 //       fs.mkdirSync(uploadDir, { recursive: true });
-//       console.log('შეიქმნა uploads ფოლდერი:', uploadDir);
+//       this.logger.log('📁 Created uploads folder');
 //     }
 
 //     try {
 //       fs.writeFileSync(filePath, buffer);
-//       console.log('ფაილი წარმატებით შეინახა:', filePath);
+//       this.logger.log('✅ File saved successfully');
 //     } catch (error) {
-//       console.error('ფაილის შენახვის შეცდომა:', error);
+//       this.logger.error('❌ File save error:', error);
 //       throw new BadRequestException('ფაილის შენახვა ვერ მოხერხდა');
 //     }
 
-//     createSliderDto.src = `/uploads/${fileName}`; // ქვედა რეგისტრი
-//     const slider = this.sliderRepository.create(createSliderDto);
-//     return this.sliderRepository.save(slider);
+//     // Save to database
+//     const sliderData = {
+//       src: `/uploads/${fileName}`,
+//       title: createSliderDto.title,
+//       description: createSliderDto.description,
+//     };
+
+//     this.logger.log(`💾 Saving to DB: ${JSON.stringify(sliderData)}`);
+
+//     try {
+//       const slider = this.sliderRepository.create(sliderData);
+//       const savedSlider = await this.sliderRepository.save(slider);
+//       this.logger.log(`✅ Slider saved with ID: ${savedSlider.id}`);
+//       this.logger.log('=== ✨ createSlider END (SUCCESS) ===');
+//       return savedSlider;
+//     } catch (error) {
+//       this.logger.error('❌ Database save error:', error);
+//       // Delete file if DB save fails
+//       try {
+//         fs.unlinkSync(filePath);
+//         this.logger.log('🗑️ Cleaned up file after DB error');
+//       } catch {}
+//       throw new BadRequestException('სლაიდერის შენახვა ვერ მოხერხდა');
+//     }
 //   }
 
 //   async findAllSliders(): Promise<Slider[]> {
-//     return this.sliderRepository.find({
-//       order: { createdAt: 'DESC' },
-//     });
+//     return this.sliderRepository.find({ order: { createdAt: 'DESC' } });
 //   }
 
 //   async findOneSlider(id: number): Promise<Slider> {
@@ -121,82 +161,54 @@
 //   ): Promise<Slider> {
 //     const slider = await this.findOneSlider(id);
 
-//     if (updateSliderDto.src) {
-//       console.log(
-//         'მიღებული base64 განახლებისთვის:',
-//         updateSliderDto.src?.substring(0, 50),
-//       );
-//       if (!updateSliderDto.src.startsWith('data:image/')) {
-//         throw new BadRequestException('სურათის base64 ფორმატი არასწორია');
-//       }
-
+//     if (updateSliderDto.src && updateSliderDto.src.startsWith('data:image/')) {
 //       const matches = updateSliderDto.src.match(
-//         /^data:image\/([a-zA-Z0-9-+\/]+);base64,(.+)$/,
+//         /^data:image\/([a-zA-Z0-9+-]+);base64,(.+)$/,
 //       );
+
 //       if (!matches) {
-//         console.error('Regex შეცდომა განახლებაში:', updateSliderDto.src);
-//         throw new BadRequestException('Base64 სტრიქონის ფორმატი არასწორია');
+//         throw new BadRequestException('Base64 ფორმატი არასწორია');
 //       }
 
-//       const extension = matches[1].toLowerCase();
-//       const normalizedExtension = extension === 'svg+xml' ? 'svg' : extension;
-//       if (!this.ALLOWED_EXTENSIONS.includes(normalizedExtension)) {
-//         console.error('არადაშვებული ფაილის ტიპი:', extension);
+//       const [, mimeType, base64Data] = matches;
+//       const extension = mimeType.replace('svg+xml', 'svg').toLowerCase();
+
+//       if (!this.ALLOWED_EXTENSIONS.includes(extension)) {
 //         throw new BadRequestException(
-//           `დაშვებულია მხოლოდ ${this.ALLOWED_EXTENSIONS.join(', ')} ფორმატები`,
+//           `დაშვებულია: ${this.ALLOWED_EXTENSIONS.join(', ')}`,
 //         );
 //       }
 
-//       const base64Data = matches[2];
-//       let buffer: Buffer;
-//       try {
-//         buffer = Buffer.from(base64Data, 'base64');
-//       } catch (error) {
-//         console.error('Base64 დეკოდირების შეცდომა განახლებაში:', error);
-//         throw new BadRequestException(
-//           'Base64 მონაცემების დეკოდირება ვერ მოხერხდა',
-//         );
-//       }
-
-//       const fileName = `slider-${Date.now()}.${normalizedExtension}`;
-//       const uploadDir = path.join(process.cwd(), 'Uploads');
+//       const buffer = Buffer.from(base64Data, 'base64');
+//       const fileName = `slider-${Date.now()}.${extension}`;
+//       const uploadDir = path.join(process.cwd(), 'uploads');
 //       const filePath = path.join(uploadDir, fileName);
-
-//       console.log('ფაილის განახლების მისამართი:', filePath);
 
 //       if (!fs.existsSync(uploadDir)) {
 //         fs.mkdirSync(uploadDir, { recursive: true });
-//         console.log('შეიქმნა uploads ფოლდერი:', uploadDir);
 //       }
 
-//       try {
-//         fs.writeFileSync(filePath, buffer);
-//         console.log('ფაილი წარმატებით განახლდა:', filePath);
-//       } catch (error) {
-//         console.error('ფაილის განახლების შეცდომა:', error);
-//         throw new BadRequestException('ფაილის განახლება ვერ მოხერხდა');
-//       }
+//       fs.writeFileSync(filePath, buffer);
 
-//       if (
-//         slider.src &&
-//         fs.existsSync(path.join(process.cwd(), slider.src.slice(1)))
-//       ) {
-//         try {
-//           fs.unlinkSync(path.join(process.cwd(), slider.src.slice(1)));
-//           console.log('ძველი ფაილი წაიშალა:', slider.src);
-//         } catch (error) {
-//           console.error('ძველი ფაილის წაშლის შეცდომა:', error);
+//       if (slider.src) {
+//         const oldFilePath = path.join(process.cwd(), slider.src.slice(1));
+//         if (fs.existsSync(oldFilePath)) {
+//           try {
+//             fs.unlinkSync(oldFilePath);
+//           } catch (error) {
+//             this.logger.error('❌ Old file delete error:', error);
+//           }
 //         }
 //       }
 
-//       slider.src = `/uploads/${fileName}`; // ქვედა რეგისტრი
+//       slider.src = `/uploads/${fileName}`;
 //     }
 
 //     if (updateSliderDto.title) {
-//       slider.title = updateSliderDto.title;
+//       slider.title = updateSliderDto.title as any;
 //     }
 //     if (updateSliderDto.description) {
-//       slider.description = updateSliderDto.description;
+//       slider.description = updateSliderDto.description as any;
 //     }
 
 //     return this.sliderRepository.save(slider);
@@ -205,33 +217,19 @@
 //   async deleteSlider(id: number): Promise<void> {
 //     const slider = await this.findOneSlider(id);
 
-//     if (
-//       slider.src &&
-//       fs.existsSync(path.join(process.cwd(), slider.src.slice(1)))
-//     ) {
-//       try {
-//         fs.unlinkSync(path.join(process.cwd(), slider.src.slice(1)));
-//         console.log('ფაილი წაიშალა:', slider.src);
-//       } catch (error) {
-//         console.error('ფაილის წაშლის შეცდომა:', error);
+//     if (slider.src) {
+//       const filePath = path.join(process.cwd(), slider.src.slice(1));
+//       if (fs.existsSync(filePath)) {
+//         try {
+//           fs.unlinkSync(filePath);
+//           this.logger.log(`🗑️ File deleted: ${slider.src}`);
+//         } catch (error) {
+//           this.logger.error('❌ File delete error:', error);
+//         }
 //       }
 //     }
 
-//     const result = await this.sliderRepository.delete(id);
-//     if (result.affected === 0) {
-//       throw new NotFoundException(`სლაიდერი ID ${id}-ით ვერ მოიძებნა`);
-//     }
-//   }
-
-//   async updateSliderLanguage(
-//     id: number,
-//     lang: 'ka' | 'en',
-//     field: 'title' | 'description',
-//     value: string,
-//   ): Promise<Slider> {
-//     const slider = await this.findOneSlider(id);
-//     slider[field][lang] = value;
-//     return this.sliderRepository.save(slider);
+//     await this.sliderRepository.delete(id);
 //   }
 
 //   async getSlidersCount(): Promise<{
@@ -247,7 +245,6 @@
 //     };
 //   }
 // }
-
 import {
   Injectable,
   NotFoundException,
@@ -289,10 +286,10 @@ export class TravelService {
     this.logger.log(`📦 Has src: ${!!createSliderDto.src}`);
     this.logger.log(`📦 Src length: ${createSliderDto.src?.length}`);
     this.logger.log(`📦 Src preview: ${createSliderDto.src?.substring(0, 50)}`);
-    this.logger.log(`📦 Title: ${JSON.stringify(createSliderDto.title)}`);
-    this.logger.log(
-      `📦 Description: ${JSON.stringify(createSliderDto.description)}`,
-    );
+    this.logger.log(`📦 TitleEn: ${createSliderDto.titleEn}`);
+    this.logger.log(`📦 TitleKa: ${createSliderDto.titleKa}`);
+    this.logger.log(`📦 DescriptionEn: ${createSliderDto.descriptionEn}`);
+    this.logger.log(`📦 DescriptionKa: ${createSliderDto.descriptionKa}`);
 
     // Check slider count
     const count = await this.sliderRepository.count();
@@ -343,7 +340,7 @@ export class TravelService {
       buffer = Buffer.from(base64Data, 'base64');
       this.logger.log(`✅ Buffer created, size: ${buffer.length} bytes`);
     } catch (error) {
-      this.logger.error('❌ Base64 decode error:', error);
+      this.logger.error('❌ Base64 decode error:', error.message, error.stack);
       throw new BadRequestException('Base64 დეკოდირება ვერ მოხერხდა');
     }
 
@@ -363,15 +360,21 @@ export class TravelService {
       fs.writeFileSync(filePath, buffer);
       this.logger.log('✅ File saved successfully');
     } catch (error) {
-      this.logger.error('❌ File save error:', error);
+      this.logger.error('❌ File save error:', error.message, error.stack);
       throw new BadRequestException('ფაილის შენახვა ვერ მოხერხდა');
     }
 
-    // Save to database
+    // Map DTO to entity structure
     const sliderData = {
       src: `/uploads/${fileName}`,
-      title: createSliderDto.title,
-      description: createSliderDto.description,
+      title: {
+        en: createSliderDto.titleEn,
+        ka: createSliderDto.titleKa,
+      },
+      description: {
+        en: createSliderDto.descriptionEn,
+        ka: createSliderDto.descriptionKa,
+      },
     };
 
     this.logger.log(`💾 Saving to DB: ${JSON.stringify(sliderData)}`);
@@ -383,7 +386,7 @@ export class TravelService {
       this.logger.log('=== ✨ createSlider END (SUCCESS) ===');
       return savedSlider;
     } catch (error) {
-      this.logger.error('❌ Database save error:', error);
+      this.logger.error('❌ Database save error:', error.message, error.stack);
       // Delete file if DB save fails
       try {
         fs.unlinkSync(filePath);
@@ -446,7 +449,11 @@ export class TravelService {
           try {
             fs.unlinkSync(oldFilePath);
           } catch (error) {
-            this.logger.error('❌ Old file delete error:', error);
+            this.logger.error(
+              '❌ Old file delete error:',
+              error.message,
+              error.stack,
+            );
           }
         }
       }
@@ -474,7 +481,11 @@ export class TravelService {
           fs.unlinkSync(filePath);
           this.logger.log(`🗑️ File deleted: ${slider.src}`);
         } catch (error) {
-          this.logger.error('❌ File delete error:', error);
+          this.logger.error(
+            '❌ File delete error:',
+            error.message,
+            error.stack,
+          );
         }
       }
     }
