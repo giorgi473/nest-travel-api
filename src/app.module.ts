@@ -13,6 +13,8 @@ import { join } from 'path';
 import { TravelService } from './travel/travel.service';
 import { Slider } from './travel/entities/slider.entity';
 import { TravelController } from './travel/travel.controller';
+import { CloudinaryService } from './cloudinary/cloudinary.service';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -34,8 +36,9 @@ import { TravelController } from './travel/travel.controller';
     DestinationModule,
     SeasonalAdventuresModule,
     GeorgianGastronomyModule,
+    CloudinaryModule,
   ],
   controllers: [AppController, DestinationController, TravelController],
-  providers: [AppService, TravelService],
+  providers: [AppService, TravelService, CloudinaryService],
 })
 export class AppModule {}
