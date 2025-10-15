@@ -27,7 +27,6 @@ async function bootstrap() {
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
 
-  // app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
   app.enableCors({
     origin: [
       'http://localhost:3000',

@@ -1,10 +1,10 @@
 [build]
-  command = "cd netlify/functions/api && node esbuild.config.js && cd ../../ && npm run build"
-  functions = "netlify/functions"
-  publish = "dist"
+command = "npm run build"
+functions = "netlify/functions"
+publish = "dist"
+
 [[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/api"
-  status = 200
-  force = true
-  
+from = "/*"
+to = "/.netlify/functions/api"
+status = 200
+force = true

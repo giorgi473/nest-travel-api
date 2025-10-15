@@ -4,7 +4,7 @@ esbuild.build({
   entryPoints: ['api.ts'],
   bundle: true,
   platform: 'node',
-  target: 'node16',
+  target: 'node16', // Match your Node.js version
   outfile: 'api.js',
   external: [
     '@grpc/grpc-js',
