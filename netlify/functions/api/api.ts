@@ -107,6 +107,9 @@
 
 //   return cachedHandler(event, context);
 // };
+
+// -----------------------------------------
+
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
@@ -114,7 +117,7 @@ import express, { Express } from 'express';
 import { AppModule } from 'src/app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
-import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
+import { HandlerEvent, HandlerContext } from '@netlify/functions';
 
 let cachedApp: Express | null = null;
 
