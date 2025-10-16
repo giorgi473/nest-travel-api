@@ -3,8 +3,18 @@ command = "npm run build"
 functions = "netlify/functions"
 publish = "dist"
 
+[functions]
+node_bundler = "esbuild"
+external_node_modules = [
+    "express",
+    "@nestjs/core",
+    "@nestjs/common",
+    "@nestjs/platform-express",
+]
+
 [[redirects]]
 from = "/*"
 to = "/.netlify/functions/api"
 status = 200
 force = true
+

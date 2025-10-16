@@ -15,7 +15,7 @@ import { TravelService } from './travel.service';
 import { CreateSliderDto } from './dto/create-slider.dto';
 import { UpdateSliderDto } from './dto/update-slider.dto';
 
-@Controller('slider')
+@Controller('sliders')
 export class TravelController {
   constructor(private readonly travelService: TravelService) {}
 

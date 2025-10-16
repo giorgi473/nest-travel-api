@@ -69,6 +69,6 @@ export class SlideCard {
   @JoinColumn({ name: 'destination_id' })
   destination: Destination;
 
-  @Column({ name: 'destination_id' })
+  @Column('int', { name: 'destination_id' })
   destinationId: number;
 }
