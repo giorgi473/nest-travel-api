@@ -11,6 +11,7 @@ esbuild.build({
     '@grpc/proto-loader',
     'kafkajs',
     'mqtt',
+    'typeorm',
     'nats',
     'ioredis',
     'amqplib',

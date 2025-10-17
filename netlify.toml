@@ -10,6 +10,7 @@ external_node_modules = [
     "@nestjs/core",
     "@nestjs/common",
     "@nestjs/platform-express",
+    "typeorm",
 ]
 
 [[redirects]]

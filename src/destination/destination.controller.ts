@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
 import { DestinationService } from './destination.service';
 import { CreateDestinationDto } from './dto/create-destination.dto';
@@ -17,7 +18,9 @@ import { UpdateDestinationDto } from './dto/update-destination.dto';
 
 @Controller('slider/destination')
 export class DestinationController {
-  constructor(private readonly destinationService: DestinationService) {}
+  constructor(
+    @Inject(DestinationService) private destinationService: DestinationService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

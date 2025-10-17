@@ -54,14 +54,12 @@ export class Slider {
   title: {
     ka: string;
     en: string;
-    ru: string;
   };
 
   @Column({ type: 'json' })
   description: {
     ka: string;
     en: string;
-    ru: string;
   };
 
   @CreateDateColumn()
