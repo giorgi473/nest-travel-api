@@ -17,12 +17,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { TravelService } from './travel.service';
 import { TravelController } from './travel.controller';
 import { Slider } from './entities/slider.entity';
-import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Slider]), CloudinaryModule],
+  imports: [TypeOrmModule.forFeature([Slider])],
   controllers: [TravelController], // ✅ მხოლოდ ერთხელ
-  providers: [TravelService], // ✅ მხოლოდ ერთხელ
+  providers: [TravelService, CloudinaryService], // ✅ მხოლოდ ერთხელ
   exports: [TravelService, TypeOrmModule],
 })
 export class TravelModule {}

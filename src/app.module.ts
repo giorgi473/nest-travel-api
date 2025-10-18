@@ -94,12 +94,12 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     // ❌ წაშლილია: ServeStaticModule - თუ არ არის აუცილებელი ფუნქციებში,
     //                  რადგან Netlify-ს შეუძლია სტატიკური ფაილების სერვისი
 
+    CloudinaryModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
     }), // მთავარი მოდულების იმპორტი
 
-    CloudinaryModule,
     TravelModule,
     DestinationModule,
     SeasonalAdventuresModule,
