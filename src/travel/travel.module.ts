@@ -23,6 +23,6 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
   imports: [TypeOrmModule.forFeature([Slider])],
   controllers: [TravelController], // ✅ მხოლოდ ერთხელ
   providers: [TravelService, CloudinaryService], // ✅ მხოლოდ ერთხელ
-  exports: [TravelService, TypeOrmModule],
+  exports: [TravelService],
 })
 export class TravelModule {}

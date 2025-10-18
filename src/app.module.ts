@@ -66,49 +66,36 @@ import { SeasonalAdventuresModule } from './seasonal-adventures/seasonal-adventu
 import { GeorgianGastronomyModule } from './georgian-gastronomy/georgian-gastronomy.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
-
-// ❗❗❗ მოდულები და კონტროლერები იმპორტირებულია TravelModule-ის მეშვეობით
-import { TravelController } from './travel/travel.controller';
-import { DestinationController } from './destination/destination.controller';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
-      type: 'postgres', // გამოიყენება Netlify-ზე დაყენებული DATABASE_URL ცვლადი
+      type: 'postgres',
       url: process.env.DATABASE_URL,
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      autoLoadEntities: true, // ლოკალურად: true; პროდაქშენზე (Netlify-ზე): false
-      synchronize: process.env.NODE_ENV !== 'production', // ❗❗❗ TypeORM SSL კონფიგურაცია ქლაუდისთვის (Neon.tech-ის ჩათვლით)
-      // ქლაუდ გარემოში აუცილებელია SSL-ის ჩართვა
+      autoLoadEntities: true,
+      synchronize: process.env.NODE_ENV !== 'production',
       ssl: true,
       extra: {
         ssl: {
-          // ეს ეუბნება node-postgres-ს, რომ არ მოითხოვოს სერტიფიკატის ვალიდაცია.
           rejectUnauthorized: false,
         },
       },
     }),
-    // ❌ წაშლილია: TypeOrmModule.forFeature([Slider]) - ეს უნდა იყოს TravelModule-ში
-    // ❌ წაშლილია: ServeStaticModule - თუ არ არის აუცილებელი ფუნქციებში,
-    //                  რადგან Netlify-ს შეუძლია სტატიკური ფაილების სერვისი
-
-    CloudinaryModule,
+    CloudinaryModule, // ✅ პირველ რიგში
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
-    }), // მთავარი მოდულების იმპორტი
-
+    }),
     TravelModule,
     DestinationModule,
     SeasonalAdventuresModule,
     GeorgianGastronomyModule,
   ],
-  controllers: [AppController, DestinationController, TravelController],
-  providers: [
-    AppService, // ❌ წაშლილია: TravelService, CloudinaryService - რადგან ისინი იმპორტირებულია
-  ],
+  controllers: [AppController], // ✅ მხოლოდ AppController!
+  providers: [AppService], // ✅ მხოლოდ AppService!
 })
 export class AppModule {}
 
