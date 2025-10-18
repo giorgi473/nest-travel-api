@@ -537,6 +537,8 @@ import {
   BadRequestException,
   InternalServerErrorException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -561,6 +563,7 @@ export class TravelService {
   constructor(
     @InjectRepository(Slider)
     private sliderRepository: Repository<Slider>,
+    @Inject(forwardRef(() => CloudinaryService))
     private cloudinaryService: CloudinaryService,
   ) {
     // ✅ დამატებული debugging ლოგები
