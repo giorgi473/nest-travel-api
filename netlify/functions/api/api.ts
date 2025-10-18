@@ -171,6 +171,7 @@
 //     };
 //   }
 // };
+
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
@@ -178,17 +179,22 @@ import express, { Express } from 'express';
 import { AppModule } from 'src/app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
-import { HandlerEvent, HandlerContext } from '@netlify/functions';
-import { PassThrough } from 'stream'; // ❗ Node.js-ის სტანდარტული stream-ი
+// ❗ საჭიროა: npm install serverless-http
+import serverless from 'serverless-http';
 
-console.log('--- NestJS Function Startup ---');
+console.log('--- NestJS Function Startup (using serverless-http) ---');
 
-let cachedApp: Express | null = null;
+// ❗❗❗ ტიპების განსაზღვრა TypeScript შეცდომების თავიდან ასაცილებლად
+// ეს არის ტიპი, რომელსაც serverless-http აბრუნებს და რომელიც Netlify-ს სჭირდება
+type ServerlessHandler = (event: any, context: any) => Promise<any>;
 
-async function bootstrap(): Promise<Express> {
-  if (cachedApp) {
-    console.log('✅ NestJS app is already cached.');
-    return cachedApp;
+// ქეშირებული ჰენდლერი
+let cachedServerlessHandler: ServerlessHandler | null = null;
+
+async function bootstrap(): Promise<ServerlessHandler> {
+  if (cachedServerlessHandler) {
+    console.log('✅ Serverless handler is already cached.');
+    return cachedServerlessHandler;
   }
 
   const expressApp = express();
@@ -197,17 +203,18 @@ async function bootstrap(): Promise<Express> {
     const app = await NestFactory.create(
       AppModule,
       new ExpressAdapter(expressApp),
+      // ლოგირება, რომ შეცდომის შემთხვევაში Netlify ლოგებში გამოჩნდეს
       { logger: ['error', 'warn', 'log'] },
     );
 
     app.setGlobalPrefix('api/v1');
 
-    // CORS Configuration (თქვენი ლოგიკა)
+    // CORS Configuration
     app.enableCors({
       origin: [
         'http://localhost:3000',
         'http://localhost:8888',
-        'https://travel-api-25.netlify.app',
+        'https://travel-api-25.netlify.app', // დაამატეთ თქვენი პროდუქციის დომენი
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
@@ -224,135 +231,40 @@ async function bootstrap(): Promise<Express> {
       }),
     );
 
-    // Body Parsers (ლიმიტი 50mb)
+    // Body Parsers (serverless-http ამუშავებს Base64-ს ავტომატურად)
     app.use(json({ limit: '50mb' }));
     app.use(urlencoded({ extended: true, limit: '50mb' }));
 
     await app.init();
 
-    console.log('✅ NestJS app initialized successfully');
+    console.log('✅ NestJS app initialized successfully.');
 
-    cachedApp = expressApp;
-    return expressApp;
+    // ❗❗❗ serverless-http-ის გამოყენება და ასერტირება (Assertion)
+    const handler = serverless(expressApp) as ServerlessHandler;
+    cachedServerlessHandler = handler;
+    return handler;
   } catch (error) {
     console.error('❌ Failed to initialize NestJS app (CRASH POINT):', error);
+    // შეცდომის გადაგდება, რომ Netlify-მა დაინახოს function crash
     throw error;
   }
 }
 
-export const handler = async (event: HandlerEvent, context: HandlerContext) => {
+// ❗❗❗ handler-ის ექსპორტი (ყველა TypeScript პრობლემა მოგვარებულია)
+export const handler = async (event: any, context: any) => {
   try {
-    const app = await bootstrap();
+    const serverlessHandler = await bootstrap();
 
-    const {
-      httpMethod,
-      path,
-      headers,
-      body,
-      queryStringParameters,
-      isBase64Encoded,
-    } = event;
-
-    // 1. Base64 დეშიფრაცია (რაც ახლა გვჭირდება)
-    let rawBody = body;
-    if (rawBody && isBase64Encoded) {
-      try {
-        rawBody = Buffer.from(rawBody, 'base64').toString('utf8');
-      } catch (err) {
-        console.error('⚠️ Failed to decode Base64 body:', err);
-      }
-    }
-
-    // 2. Query string-ის აწყობა
-    const queryString = queryStringParameters
-      ? '?' +
-        new URLSearchParams(
-          queryStringParameters as Record<string, string>,
-        ).toString()
-      : '';
-
-    // ----------------------------------------------------
-    // ❗❗❗ კრიტიკული ნაწილი: Node Stream Request ობიექტის შექმნა ❗❗❗
-    // ----------------------------------------------------
-    const req = new PassThrough();
-    // PassThrough-ის გადაყვანა IncomingMessage-ის მსგავს ობიექტად
-    const request: any = req as any;
-
-    request.method = httpMethod;
-    request.url = path + queryString;
-    request.headers = headers || {};
-    request.query = queryStringParameters || {};
-    request.params = {};
-
-    // get მეთოდის დამატება (რაც Express-ს სჭირდება)
-    request.get = function (name: string) {
-      return this.headers[name.toLowerCase()];
-    };
-
-    // Body-ის ჩაწერა Stream-ში
-    if (rawBody) {
-      request.write(rawBody);
-    }
-    request.end();
-
-    // ----------------------------------------------------
-
-    return new Promise((resolve) => {
-      // Response ობიექტის შექმნა (როგორც ადრე)
-      const res: any = {
-        statusCode: 200,
-        _headers: {},
-        _body: [],
-
-        status(code: number) {
-          this.statusCode = code;
-          return this;
-        },
-        setHeader(key: string, value: string) {
-          this._headers[key.toLowerCase()] = value;
-          return this;
-        },
-        // ... (სხვა res მეთოდები)
-
-        end(body?: any) {
-          if (body) {
-            this._body.push(body);
-          }
-
-          const responseBody = Buffer.concat(
-            this._body.map((b) => (Buffer.isBuffer(b) ? b : Buffer.from(b))),
-          ).toString();
-
-          resolve({
-            statusCode: this.statusCode,
-            headers: this._headers,
-            body: responseBody,
-          });
-        },
-        json(data: any) {
-          this.setHeader('content-type', 'application/json');
-          this.end(JSON.stringify(data));
-          return this;
-        },
-        send(body: any) {
-          if (typeof body === 'object') {
-            return this.json(body);
-          }
-          this.end(body);
-          return this;
-        },
-      };
-
-      // Express app-ის გამოძახება
-      app(request, res as any);
-    });
+    // serverless-http-ის გამოძახება
+    return serverlessHandler(event, context);
   } catch (error) {
-    console.error('❌ Handler execution failed:', error);
+    console.error('❌ Final Handler execution failed:', error);
     return {
       statusCode: 500,
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        message: 'Server execution failed. Check function logs.',
+        message:
+          'Server execution failed during bootstrap. Check function logs.',
         error: error instanceof Error ? error.message : 'Unknown error',
       }),
     };
