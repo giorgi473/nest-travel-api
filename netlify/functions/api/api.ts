@@ -179,8 +179,8 @@ import { AppModule } from 'src/app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
 import { HandlerEvent, HandlerContext } from '@netlify/functions';
+import { PassThrough } from 'stream'; // ❗ Node.js-ის სტანდარტული stream-ი
 
-// ლოგირება bootstrap-ისთვის
 console.log('--- NestJS Function Startup ---');
 
 let cachedApp: Express | null = null;
@@ -197,19 +197,17 @@ async function bootstrap(): Promise<Express> {
     const app = await NestFactory.create(
       AppModule,
       new ExpressAdapter(expressApp),
-      // ლოგირება, რომ პრობლემის შემთხვევაში Netlify ლოგებში გამოჩნდეს
       { logger: ['error', 'warn', 'log'] },
     );
 
     app.setGlobalPrefix('api/v1');
 
-    // CORS Configuration
+    // CORS Configuration (თქვენი ლოგიკა)
     app.enableCors({
       origin: [
         'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:8888', // Netlify Dev
-        'https://travel-api-25.netlify.app', // თქვენი Netlify დომენი
+        'http://localhost:8888',
+        'https://travel-api-25.netlify.app',
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
@@ -222,13 +220,11 @@ async function bootstrap(): Promise<Express> {
         whitelist: true,
         forbidNonWhitelisted: false,
         transform: true,
-        transformOptions: {
-          enableImplicitConversion: true,
-        },
+        transformOptions: { enableImplicitConversion: true },
       }),
     );
 
-    // Body Parsers (ლიმიტი 50mb - საჭიროა დიდი Base64 სურათებისთვის)
+    // Body Parsers (ლიმიტი 50mb)
     app.use(json({ limit: '50mb' }));
     app.use(urlencoded({ extended: true, limit: '50mb' }));
 
@@ -239,18 +235,15 @@ async function bootstrap(): Promise<Express> {
     cachedApp = expressApp;
     return expressApp;
   } catch (error) {
-    // ❗ კრიტიკული შეცდომის დამუშავება ინიციალიზაციისას (DB ან კონფიგურაცია)
     console.error('❌ Failed to initialize NestJS app (CRASH POINT):', error);
-    // შეცდომის გადაგდება, რომ Netlify-მა დაინახოს function crash
     throw error;
   }
 }
 
 export const handler = async (event: HandlerEvent, context: HandlerContext) => {
   try {
-    const app = await bootstrap(); // Express აპლიკაცია
+    const app = await bootstrap();
 
-    // ❗❗❗ isBase64Encoded property-ის ამოღება
     const {
       httpMethod,
       path,
@@ -260,46 +253,52 @@ export const handler = async (event: HandlerEvent, context: HandlerContext) => {
       isBase64Encoded,
     } = event;
 
-    // ------------------------------------------------------------------
-    // ❗❗❗ კრიტიკული ნაწილი: Body-ის დეშიფრაცია Netlify-ისათვის ❗❗❗
-    // ------------------------------------------------------------------
+    // 1. Base64 დეშიფრაცია (რაც ახლა გვჭირდება)
     let rawBody = body;
-
-    // თუ Body არსებობს და არის Base64-ით დაშიფრული (რაც ხდება POST/PUT მოთხოვნებზე)
     if (rawBody && isBase64Encoded) {
-      // Base64 სტრინგის გაშიფვრა UTF-8 სტრინგად
       try {
         rawBody = Buffer.from(rawBody, 'base64').toString('utf8');
-        console.log('✅ Body successfully decoded from Base64.');
       } catch (err) {
         console.error('⚠️ Failed to decode Base64 body:', err);
       }
     }
-    // ------------------------------------------------------------------
+
+    // 2. Query string-ის აწყობა
+    const queryString = queryStringParameters
+      ? '?' +
+        new URLSearchParams(
+          queryStringParameters as Record<string, string>,
+        ).toString()
+      : '';
+
+    // ----------------------------------------------------
+    // ❗❗❗ კრიტიკული ნაწილი: Node Stream Request ობიექტის შექმნა ❗❗❗
+    // ----------------------------------------------------
+    const req = new PassThrough();
+    // PassThrough-ის გადაყვანა IncomingMessage-ის მსგავს ობიექტად
+    const request: any = req as any;
+
+    request.method = httpMethod;
+    request.url = path + queryString;
+    request.headers = headers || {};
+    request.query = queryStringParameters || {};
+    request.params = {};
+
+    // get მეთოდის დამატება (რაც Express-ს სჭირდება)
+    request.get = function (name: string) {
+      return this.headers[name.toLowerCase()];
+    };
+
+    // Body-ის ჩაწერა Stream-ში
+    if (rawBody) {
+      request.write(rawBody);
+    }
+    request.end();
+
+    // ----------------------------------------------------
 
     return new Promise((resolve) => {
-      // Query string-ის აწყობა
-      const queryString = queryStringParameters
-        ? '?' +
-          new URLSearchParams(
-            queryStringParameters as Record<string, string>,
-          ).toString()
-        : '';
-
-      // Request ობიექტის შექმნა
-      const req: any = {
-        method: httpMethod,
-        url: path + queryString,
-        headers: headers || {},
-        body: rawBody, // ✅ გადავეცით RAW სტრინგი (ან გაშიფრული)
-        query: queryStringParameters || {},
-        params: {},
-        get: function (name: string) {
-          return this.headers[name.toLowerCase()];
-        },
-      };
-
-      // Response ობიექტის შექმნა (რომელიც Express-ის პასუხს Netlify-ის ფორმატში გადაიყვანს)
+      // Response ობიექტის შექმნა (როგორც ადრე)
       const res: any = {
         statusCode: 200,
         _headers: {},
@@ -309,13 +308,11 @@ export const handler = async (event: HandlerEvent, context: HandlerContext) => {
           this.statusCode = code;
           return this;
         },
-
         setHeader(key: string, value: string) {
           this._headers[key.toLowerCase()] = value;
           return this;
         },
-
-        // ... (getHeader, removeHeader, write მეთოდები უცვლელად)
+        // ... (სხვა res მეთოდები)
 
         end(body?: any) {
           if (body) {
@@ -332,13 +329,11 @@ export const handler = async (event: HandlerEvent, context: HandlerContext) => {
             body: responseBody,
           });
         },
-
         json(data: any) {
           this.setHeader('content-type', 'application/json');
           this.end(JSON.stringify(data));
           return this;
         },
-
         send(body: any) {
           if (typeof body === 'object') {
             return this.json(body);
@@ -349,16 +344,13 @@ export const handler = async (event: HandlerEvent, context: HandlerContext) => {
       };
 
       // Express app-ის გამოძახება
-      app(req as any, res as any);
+      app(request, res as any);
     });
   } catch (error) {
-    // ❗ თუ handler-ის შესრულება ჩავარდება
     console.error('❌ Handler execution failed:', error);
     return {
       statusCode: 500,
-      headers: {
-        'content-type': 'application/json',
-      },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         message: 'Server execution failed. Check function logs.',
         error: error instanceof Error ? error.message : 'Unknown error',
