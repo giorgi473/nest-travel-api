@@ -65,7 +65,6 @@ export class AppModule {}
 // import { DestinationController } from './destination/destination.controller';
 // import { Slider } from './travel/entities/slider.entity';
 
-
 // @Module({
 //   imports: [
 //     ConfigModule.forRoot({ isGlobal: true }),
