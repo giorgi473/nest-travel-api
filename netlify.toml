@@ -1,3 +1,23 @@
+# [build]
+# command = "npm run build"
+# functions = "netlify/functions"
+# publish = "dist"
+
+# [functions]
+# node_bundler = "esbuild"
+# external_node_modules = [
+#     "express",
+#     "@nestjs/core",
+#     "@nestjs/common",
+#     "@nestjs/platform-express",
+#     "typeorm",
+# ]
+
+# [[redirects]]
+# from = "/*"
+# to = "/.netlify/functions/api"
+# status = 200
+# force = true
 [build]
 command = "npm run build"
 functions = "netlify/functions"
@@ -12,6 +32,15 @@ external_node_modules = [
     "@nestjs/platform-express",
     "typeorm",
 ]
+
+# ✅ CORS Headers
+[[headers]]
+for = "/*"
+[headers.values]
+Access-Control-Allow-Origin = "*"
+Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+Access-Control-Allow-Headers = "Content-Type, Authorization"
+Access-Control-Allow-Credentials = "true"
 
 [[redirects]]
 from = "/*"
