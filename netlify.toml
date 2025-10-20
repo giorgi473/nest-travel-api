@@ -1,43 +1,19 @@
-# [build]
-# command = "npm run build"
-# functions = "netlify/functions"
-# publish = "dist"
-
-# [functions]
-# node_bundler = "esbuild"
-# external_node_modules = [
-#     "express",
-#     "@nestjs/core",
-#     "@nestjs/common",
-#     "@nestjs/platform-express",
-#     "typeorm",
-# ]
-
-# # ✅ CORS Headers
-# [[headers]]
-# for = "/*"
-# [headers.values]
-# Access-Control-Allow-Origin = "*"
-# Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-# Access-Control-Allow-Headers = "Content-Type, Authorization"
-# Access-Control-Allow-Credentials = "true"
-
-# [[redirects]]
-# from = "/*"
-# to = "/.netlify/functions/api"
-# status = 200
-# force = true
 [build]
 command = "npm run build"
 functions = "netlify/functions"
 publish = "dist"
 
 [functions]
-# კრიტიკული ცვლილება: ვთიშავთ Netlify-ის ბანდლინგს,
-# რათა გამოვიყენოთ ჩვენი, ოპტიმიზებული 'npm run build' სკრიპტი.
-node_bundler = "none"
+node_bundler = "esbuild"
+external_node_modules = [
+    "express",
+    "@nestjs/core",
+    "@nestjs/common",
+    "@nestjs/platform-express",
+    "typeorm",
+]
 
-# Headers for CORS (უცვლელი)
+# ✅ CORS Headers
 [[headers]]
 for = "/*"
 [headers.values]
@@ -46,7 +22,6 @@ Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
 Access-Control-Allow-Headers = "Content-Type, Authorization"
 Access-Control-Allow-Credentials = "true"
 
-# Redirects to point all traffic to the 'api' function (უცვლელი)
 [[redirects]]
 from = "/*"
 to = "/.netlify/functions/api"
