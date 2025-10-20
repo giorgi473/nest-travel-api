@@ -6,7 +6,10 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "prebuild": "rm -rf dist",
+    "build:nest": "nest build", 
+    "build:serverless": "node esbuild-serverless.js",
+    "build": "npm run build:nest && npm run build:serverless",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

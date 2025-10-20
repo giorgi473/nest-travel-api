@@ -33,14 +33,11 @@ functions = "netlify/functions"
 publish = "dist"
 
 [functions]
-# ვენდობით esbuild-ს, რომ ის ჩააბანდლებს მხოლოდ იმას, რაც კოდს სჭირდება.
-node_bundler = "esbuild"
+# კრიტიკული ცვლილება: ვთიშავთ Netlify-ის ბანდლინგს,
+# რათა გამოვიყენოთ ჩვენი, ოპტიმიზებული 'npm run build' სკრიპტი.
+node_bundler = "none"
 
-# 🔴 ეს სექცია ამოღებულია, რადგან ის აიძულებდა Netlify-ს
-# ჩაერთო მთელი 250MB+ ზომის node_modules საქაღალდე:
-# included_files = ["node_modules/**"]
-
-# CORS Headers (უცვლელი, რადგან სწორია)
+# Headers for CORS (უცვლელი)
 [[headers]]
 for = "/*"
 [headers.values]
@@ -49,7 +46,7 @@ Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
 Access-Control-Allow-Headers = "Content-Type, Authorization"
 Access-Control-Allow-Credentials = "true"
 
-# Redirects (უცვლელი, რადგან სწორია)
+# Redirects to point all traffic to the 'api' function (უცვლელი)
 [[redirects]]
 from = "/*"
 to = "/.netlify/functions/api"
