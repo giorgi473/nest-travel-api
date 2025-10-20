@@ -13,6 +13,15 @@
 #     "typeorm",
 # ]
 
+# # ✅ CORS Headers
+# [[headers]]
+# for = "/*"
+# [headers.values]
+# Access-Control-Allow-Origin = "*"
+# Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+# Access-Control-Allow-Headers = "Content-Type, Authorization"
+# Access-Control-Allow-Credentials = "true"
+
 # [[redirects]]
 # from = "/*"
 # to = "/.netlify/functions/api"
@@ -25,15 +34,20 @@ publish = "dist"
 
 [functions]
 node_bundler = "esbuild"
-external_node_modules = [
-    "express",
-    "@nestjs/core",
-    "@nestjs/common",
-    "@nestjs/platform-express",
-    "typeorm",
-]
+# ⚠️ კრიტიკული ცვლილება 1: ამოღებულია external_node_modules.
+# ჩვენ ვენდობით esbuild-ს, რომ ჩააბანდლოს მხოლოდ საჭირო კოდი.
 
-# ✅ CORS Headers
+# ⚠️ კრიტიკული ცვლილება 2: ვუთითებთ, რომ node_modules მთლიანად უნდა იყოს შეტანილი.
+# ეს აიძულებს Netlify-ს, ფუნქციას მიაწოდოს ის მოდულები, რომელთაც esbuild არ აბანდლებს.
+# ეს შეიძლება იყოს დიდი, მაგრამ თუ NestJS-ის build-ი კარგად არის ოპტიმიზებული,
+# ეს მუშაობს. თუ მაინც წარუმატებლად დასრულდა, მაშინ:
+# უნდა შევცვალოთ "node_modules/**" კონკრეტული მოდულებით.
+included_files = ["node_modules/**"]
+
+# 💡 რჩევა: შეგიძლიათ სცადოთ node_bundler = "none" (გამორთვა), 
+# თუ თქვენი npm run build უკვე აკეთებს სრულ ბანდლინგს.
+
+# CORS Headers (ეს ნაწილი კარგად გაქვთ)
 [[headers]]
 for = "/*"
 [headers.values]
@@ -42,6 +56,7 @@ Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
 Access-Control-Allow-Headers = "Content-Type, Authorization"
 Access-Control-Allow-Credentials = "true"
 
+# Redirects (ეს ნაწილი კარგად გაქვთ)
 [[redirects]]
 from = "/*"
 to = "/.netlify/functions/api"
