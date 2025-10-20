@@ -172,7 +172,6 @@
 //   }
 // };
 
-// ---------------------------------------------------------
 
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
@@ -246,6 +245,7 @@ async function bootstrap(): Promise<ServerlessHandler> {
     throw error;
   }
 }
+
 
 export const handler = async (event: any, context: any) => {
   try {
