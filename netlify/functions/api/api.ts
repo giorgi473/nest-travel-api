@@ -94,44 +94,40 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import express from 'express';
+import express, { Express } from 'express';
 import { AppModule } from 'src/app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
 import serverless from 'serverless-http';
 
-// --- Global Setup ---
 console.log('--- NestJS Function Startup ---');
 
 type ServerlessHandler = (event: any, context: any) => Promise<any>;
 
-// Caching the handler for subsequent "warm" invocations
+// ქეშირებული ჰენდლერი "თბილი სტარტებისთვის"
 let cachedServerlessHandler: ServerlessHandler | null = null;
 
 async function bootstrap(): Promise<ServerlessHandler> {
-  // 1. Check Cache
+  // თუ ქეშირებულია, დააბრუნეთ სწრაფად
   if (cachedServerlessHandler) {
     console.log('➡️ Using cached Serverless handler (Warm Start).');
     return cachedServerlessHandler;
   }
 
-  // 2. Initialize App (Cold Start)
+  // ცივი სტარტი (Cold Start)
+  console.log('🧊 Initializing NestJS app (Cold Start)...');
   const expressApp = express();
 
   try {
     const app = await NestFactory.create(
       AppModule,
       new ExpressAdapter(expressApp),
-      {
-        logger: ['error', 'warn', 'log'],
-        // ⚠️ Production Optimization: Disable unnecessary features if possible
-        // For example: abortOnError: false
-      },
+      { logger: ['error', 'warn', 'log'] },
     );
 
     app.setGlobalPrefix('api/v1');
 
-    // CORS Configuration
+    // CORS Configuration (თქვენი კონფიგურაცია)
     app.enableCors({
       origin: [
         'http://localhost:3000',
@@ -142,7 +138,7 @@ async function bootstrap(): Promise<ServerlessHandler> {
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
-      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'], // Added 'Accept'
+      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     });
 
     // Global Validation Pipe
@@ -159,18 +155,16 @@ async function bootstrap(): Promise<ServerlessHandler> {
     app.use(json({ limit: '50mb' }));
     app.use(urlencoded({ extended: true, limit: '50mb' }));
 
-    // Finalize App initialization
     await app.init();
 
-    console.log('✅ NestJS app initialized successfully (Cold Start).');
+    console.log('✅ NestJS app initialized successfully.');
 
-    // 3. Create Serverless Handler and Cache it
+    // ქეშირება
     const handler = serverless(expressApp) as ServerlessHandler;
     cachedServerlessHandler = handler;
     return handler;
   } catch (error) {
     console.error('❌ Failed to initialize NestJS app (CRASH POINT):', error);
-    // Ensure the function fails loudly during cold start if bootstrap fails
     throw error;
   }
 }
@@ -181,22 +175,15 @@ export const handler = async (event: any, context: any) => {
     return serverlessHandler(event, context);
   } catch (error) {
     console.error('❌ Final Handler execution failed:', error);
-    // Return a standardized 500 error response
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'Unknown error during handler execution.';
     return {
       statusCode: 500,
       headers: {
         'content-type': 'application/json',
-        // Note: CORS headers are better managed by NestJS/Netlify if possible
         'access-control-allow-origin': '*',
       },
       body: JSON.stringify({
-        message:
-          'Server execution failed. Check Netlify function logs for details.',
-        error: errorMessage,
+        message: 'Server execution failed. Check function logs.',
+        error: error instanceof Error ? error.message : 'Unknown error',
       }),
     };
   }
