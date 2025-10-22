@@ -65,7 +65,8 @@ async function bootstrap() {
       'http://localhost:3000',
       'http://localhost:3001',
       'http://localhost:5173',
-      'https://travel-website-25.netlify.app', // ✅ თქვენი frontend production domain
+      // 'https://travel-website-25.netlify.app',
+      `https://travel-website-psi-murex.vercel.app`,
       'https://your-production-domain.com',
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
