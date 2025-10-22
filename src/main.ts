@@ -66,6 +66,7 @@ async function bootstrap() {
       'http://localhost:3001',
       'http://localhost:5173',
       // 'https://travel-website-25.netlify.app',
+      `https://travel-admin-panel-lake.vercel.app`,
       `https://travel-website-psi-murex.vercel.app`,
       'https://your-production-domain.com',
     ],
