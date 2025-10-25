@@ -6,6 +6,7 @@
 // import { Blog } from './entities/blog.entity';
 // import { CreateDestinationDto } from './dto/create-destination.dto';
 // import { UpdateDestinationDto } from './dto/update-destination.dto';
+// import { CloudinaryService } from '../cloudinary/cloudinary.service'; // დაამატებული
 
 // @Injectable()
 // export class DestinationService {
@@ -16,36 +17,91 @@
 //     private slideCardRepository: Repository<SlideCard>,
 //     @InjectRepository(Blog)
 //     private blogRepository: Repository<Blog>,
+//     private cloudinaryService: CloudinaryService, // დაამატებული
 //   ) {}
+
+//   private async uploadIfBase64(
+//     field: string | undefined,
+//   ): Promise<string | undefined> {
+//     if (!field || field.startsWith('http')) return field; // თუ უკვე URL, უცვლელი
+//     if (field.startsWith('data:image/')) {
+//       // base64 check
+//       const { url } = await this.cloudinaryService.uploadImage(
+//         field,
+//         'destinations',
+//       );
+//       return url;
+//     }
+//     return field;
+//   }
 
 //   async create(
 //     createDestinationDto: CreateDestinationDto,
 //   ): Promise<Destination> {
-//     const destination = new Destination();
+//     // Upload main images
+//     const src = await this.uploadIfBase64(createDestinationDto.src);
+//     const modalSrc = await this.uploadIfBase64(createDestinationDto.modalSrc);
 
+//     // anotherSection image
+//     let anotherSection = { ...createDestinationDto.anotherSection };
+//     if (anotherSection.image) {
+//       anotherSection.image = await this.uploadIfBase64(anotherSection.image);
+//     }
+
+//     // slideCard images
+//     let slideCard = createDestinationDto.slideCard || [];
+//     slideCard = await Promise.all(
+//       slideCard.map(async (sc) => {
+//         const updatedSc = { ...sc };
+//         updatedSc.src = await this.uploadIfBase64(sc.src);
+//         updatedSc.modalSrc = await this.uploadIfBase64(sc.modalSrc);
+//         return updatedSc;
+//       }),
+//     );
+
+//     // blogs images
+//     let blogs = createDestinationDto.blogs || [];
+//     blogs = await Promise.all(
+//       blogs.map(async (b) => {
+//         const updatedB = { ...b };
+//         if (updatedB.img) {
+//           updatedB.img = await this.uploadIfBase64(updatedB.img);
+//         }
+//         return updatedB;
+//       }),
+//     );
+
+//     // Updated DTO
+//     const updatedDto = {
+//       ...createDestinationDto,
+//       src,
+//       modalSrc,
+//       anotherSection,
+//       slideCard,
+//       blogs,
+//     };
+
+//     const destination = new Destination();
 //     Object.assign(destination, {
-//       title: createDestinationDto.title,
-//       src: createDestinationDto.src,
-//       modalSrc: createDestinationDto.modalSrc,
-//       additionalDescription: createDestinationDto.additionalDescription,
-//       region: createDestinationDto.region,
-//       city: createDestinationDto.city,
-//       description: createDestinationDto.description,
-//       name: createDestinationDto.name,
-//       address: createDestinationDto.address,
-//       phone: createDestinationDto.phone,
-//       website: createDestinationDto.website,
-//       workingHours: createDestinationDto.workingHours,
-//       anotherSection: createDestinationDto.anotherSection,
+//       title: updatedDto.title,
+//       src: updatedDto.src,
+//       modalSrc: updatedDto.modalSrc,
+//       additionalDescription: updatedDto.additionalDescription,
+//       region: updatedDto.region,
+//       city: updatedDto.city,
+//       description: updatedDto.description,
+//       name: updatedDto.name,
+//       address: updatedDto.address,
+//       phone: updatedDto.phone,
+//       website: updatedDto.website,
+//       workingHours: updatedDto.workingHours,
+//       anotherSection: updatedDto.anotherSection,
 //     });
 
 //     const savedDestination = await this.destinationRepository.save(destination);
 
-//     if (
-//       createDestinationDto.slideCard &&
-//       createDestinationDto.slideCard.length > 0
-//     ) {
-//       const slideCards = createDestinationDto.slideCard.map((sc) => {
+//     if (updatedDto.slideCard && updatedDto.slideCard.length > 0) {
+//       const slideCards = updatedDto.slideCard.map((sc) => {
 //         const slideCard = new SlideCard();
 //         Object.assign(slideCard, sc);
 //         slideCard.destinationId = savedDestination.id;
@@ -54,14 +110,14 @@
 //       await this.slideCardRepository.save(slideCards);
 //     }
 
-//     if (createDestinationDto.blogs && createDestinationDto.blogs.length > 0) {
-//       const blogs = createDestinationDto.blogs.map((b) => {
+//     if (updatedDto.blogs && updatedDto.blogs.length > 0) {
+//       const blogEntities = updatedDto.blogs.map((b) => {
 //         const blog = new Blog();
 //         Object.assign(blog, b);
 //         blog.destinationId = savedDestination.id;
 //         return blog;
 //       });
-//       await this.blogRepository.save(blogs);
+//       await this.blogRepository.save(blogEntities);
 //     }
 
 //     return this.findOne(savedDestination.id);
@@ -196,7 +252,7 @@ import { SlideCard } from './entities/slide-card.entity';
 import { Blog } from './entities/blog.entity';
 import { CreateDestinationDto } from './dto/create-destination.dto';
 import { UpdateDestinationDto } from './dto/update-destination.dto';
-import { CloudinaryService } from '../cloudinary/cloudinary.service'; // დაამატებული
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class DestinationService {
@@ -207,15 +263,14 @@ export class DestinationService {
     private slideCardRepository: Repository<SlideCard>,
     @InjectRepository(Blog)
     private blogRepository: Repository<Blog>,
-    private cloudinaryService: CloudinaryService, // დაამატებული
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   private async uploadIfBase64(
     field: string | undefined,
   ): Promise<string | undefined> {
-    if (!field || field.startsWith('http')) return field; // თუ უკვე URL, უცვლელი
+    if (!field || field.startsWith('http')) return field;
     if (field.startsWith('data:image/')) {
-      // base64 check
       const { url } = await this.cloudinaryService.uploadImage(
         field,
         'destinations',
@@ -233,8 +288,10 @@ export class DestinationService {
     const modalSrc = await this.uploadIfBase64(createDestinationDto.modalSrc);
 
     // anotherSection image
-    let anotherSection = { ...createDestinationDto.anotherSection };
-    if (anotherSection.image) {
+    let anotherSection = createDestinationDto.anotherSection
+      ? { ...createDestinationDto.anotherSection }
+      : undefined;
+    if (anotherSection?.image) {
       anotherSection.image = await this.uploadIfBase64(anotherSection.image);
     }
 
@@ -261,47 +318,39 @@ export class DestinationService {
       }),
     );
 
-    // Updated DTO
-    const updatedDto = {
-      ...createDestinationDto,
-      src,
-      modalSrc,
-      anotherSection,
-      slideCard,
-      blogs,
-    };
-
     const destination = new Destination();
     Object.assign(destination, {
-      title: updatedDto.title,
-      src: updatedDto.src,
-      modalSrc: updatedDto.modalSrc,
-      additionalDescription: updatedDto.additionalDescription,
-      region: updatedDto.region,
-      city: updatedDto.city,
-      description: updatedDto.description,
-      name: updatedDto.name,
-      address: updatedDto.address,
-      phone: updatedDto.phone,
-      website: updatedDto.website,
-      workingHours: updatedDto.workingHours,
-      anotherSection: updatedDto.anotherSection,
+      title: createDestinationDto.title,
+      src,
+      modalSrc,
+      additionalDescription: createDestinationDto.additionalDescription,
+      region: createDestinationDto.region,
+      city: createDestinationDto.city,
+      description: createDestinationDto.description,
+      name: createDestinationDto.name,
+      address: createDestinationDto.address,
+      phone: createDestinationDto.phone,
+      website: createDestinationDto.website,
+      workingHours: createDestinationDto.workingHours,
+      anotherSection,
     });
 
     const savedDestination = await this.destinationRepository.save(destination);
 
-    if (updatedDto.slideCard && updatedDto.slideCard.length > 0) {
-      const slideCards = updatedDto.slideCard.map((sc) => {
-        const slideCard = new SlideCard();
-        Object.assign(slideCard, sc);
-        slideCard.destinationId = savedDestination.id;
-        return slideCard;
+    // შენახვა slideCard-ების
+    if (slideCard && slideCard.length > 0) {
+      const slideCards = slideCard.map((sc) => {
+        const slideCardEntity = new SlideCard();
+        Object.assign(slideCardEntity, sc);
+        slideCardEntity.destinationId = savedDestination.id;
+        return slideCardEntity;
       });
       await this.slideCardRepository.save(slideCards);
     }
 
-    if (updatedDto.blogs && updatedDto.blogs.length > 0) {
-      const blogEntities = updatedDto.blogs.map((b) => {
+    // შენახვა blogs-ების
+    if (blogs && blogs.length > 0) {
+      const blogEntities = blogs.map((b) => {
         const blog = new Blog();
         Object.assign(blog, b);
         blog.destinationId = savedDestination.id;
@@ -349,10 +398,22 @@ export class DestinationService {
   ): Promise<Destination> {
     const destination = await this.findOne(id);
 
+    // Upload images თუ base64 არის
+    const src = await this.uploadIfBase64(updateDestinationDto.src);
+    const modalSrc = await this.uploadIfBase64(updateDestinationDto.modalSrc);
+
+    // anotherSection-ის განახლება
+    let anotherSection = updateDestinationDto.anotherSection;
+    if (anotherSection?.image) {
+      const uploadedImage = await this.uploadIfBase64(anotherSection.image);
+      anotherSection = { ...anotherSection, image: uploadedImage };
+    }
+
+    // მთავარი destination-ის განახლება
     Object.assign(destination, {
       title: updateDestinationDto.title ?? destination.title,
-      src: updateDestinationDto.src ?? destination.src,
-      modalSrc: updateDestinationDto.modalSrc ?? destination.modalSrc,
+      src: src ?? destination.src,
+      modalSrc: modalSrc ?? destination.modalSrc,
       additionalDescription:
         updateDestinationDto.additionalDescription ??
         destination.additionalDescription,
@@ -365,34 +426,57 @@ export class DestinationService {
       website: updateDestinationDto.website ?? destination.website,
       workingHours:
         updateDestinationDto.workingHours ?? destination.workingHours,
-      anotherSection:
-        updateDestinationDto.anotherSection ?? destination.anotherSection,
+      anotherSection: anotherSection ?? destination.anotherSection,
     });
 
     await this.destinationRepository.save(destination);
 
+    // slideCard-ების განახლება
     if (updateDestinationDto.slideCard !== undefined) {
+      // წაშლა ძველი slideCard-ების
       await this.slideCardRepository.delete({ destinationId: id });
+
       if (updateDestinationDto.slideCard.length > 0) {
-        const slideCards = updateDestinationDto.slideCard.map((sc) => {
-          const slideCard = new SlideCard();
-          Object.assign(slideCard, sc);
-          slideCard.destinationId = id;
-          return slideCard;
-        });
+        // ახალი slideCard-ების შექმნა (სურათების ატვირთვით)
+        const slideCards = await Promise.all(
+          updateDestinationDto.slideCard.map(async (sc) => {
+            const slideCard = new SlideCard();
+            const uploadedSrc = await this.uploadIfBase64(sc.src);
+            const uploadedModalSrc = await this.uploadIfBase64(sc.modalSrc);
+
+            Object.assign(slideCard, {
+              ...sc,
+              src: uploadedSrc,
+              modalSrc: uploadedModalSrc,
+            });
+            slideCard.destinationId = id;
+            return slideCard;
+          }),
+        );
         await this.slideCardRepository.save(slideCards);
       }
     }
 
+    // blogs-ების განახლება
     if (updateDestinationDto.blogs !== undefined) {
+      // წაშლა ძველი blogs-ების
       await this.blogRepository.delete({ destinationId: id });
+
       if (updateDestinationDto.blogs.length > 0) {
-        const blogs = updateDestinationDto.blogs.map((b) => {
-          const blog = new Blog();
-          Object.assign(blog, b);
-          blog.destinationId = id;
-          return blog;
-        });
+        // ახალი blogs-ების შექმნა (სურათების ატვირთვით)
+        const blogs = await Promise.all(
+          updateDestinationDto.blogs.map(async (b) => {
+            const blog = new Blog();
+            const uploadedImg = await this.uploadIfBase64(b.img);
+
+            Object.assign(blog, {
+              ...b,
+              img: uploadedImg,
+            });
+            blog.destinationId = id;
+            return blog;
+          }),
+        );
         await this.blogRepository.save(blogs);
       }
     }
@@ -416,6 +500,20 @@ export class DestinationService {
       city: destination.city?.[lang],
       description: destination.description?.[lang],
       name: destination.name?.[lang],
+      anotherSection: destination.anotherSection
+        ? {
+            ...destination.anotherSection,
+            name1: destination.anotherSection.name1?.[lang],
+            description: destination.anotherSection.description?.[lang],
+            name2: destination.anotherSection.name2?.[lang],
+            description2: destination.anotherSection.description2?.[lang],
+            description3: destination.anotherSection.description3?.[lang],
+            name4: destination.anotherSection.name4?.[lang],
+            name5: destination.anotherSection.name5?.[lang],
+            description4: destination.anotherSection.description4?.[lang],
+            description5: destination.anotherSection.description5?.[lang],
+          }
+        : undefined,
       slideCard: destination.slideCard?.map((sc) => ({
         ...sc,
         title: sc.title?.[lang],

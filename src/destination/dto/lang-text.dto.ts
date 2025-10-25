@@ -1,5 +1,4 @@
-import { IsString, ValidateNested, IsArray, IsOptional } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsOptional } from 'class-validator';
 
 export class LangText {
   @IsString()
