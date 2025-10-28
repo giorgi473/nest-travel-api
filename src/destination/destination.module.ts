@@ -6,11 +6,10 @@ import { Destination } from './entities/destination.entity';
 import { SlideCard } from './entities/slide-card.entity';
 import { Blog } from './entities/blog.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
-import { SlideCardBlog } from './entities/slide-card-blog.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Destination, SlideCard, Blog, SlideCardBlog]),
+    TypeOrmModule.forFeature([Destination, SlideCard, Blog]),
     CloudinaryModule,
   ],
   controllers: [DestinationController],
