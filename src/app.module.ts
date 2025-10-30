@@ -12,6 +12,7 @@
 // import { join } from 'path';
 // import { TravelService } from './travel/travel.service';
 // import { Slider } from './travel/entities/slider.entity';
+import { ToursServiceModule } from './tours-service/tours-service.module';
 // import { TravelController } from './travel/travel.controller';
 // import { CloudinaryService } from './cloudinary/cloudinary.service';
 // import { CloudinaryModule } from './cloudinary/cloudinary.module';
@@ -93,6 +94,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     DestinationModule,
     SeasonalAdventuresModule,
     GeorgianGastronomyModule,
+    ToursServiceModule,
   ],
   controllers: [AppController], // ✅ მხოლოდ AppController!
   providers: [AppService], // ✅ მხოლოდ AppService!
