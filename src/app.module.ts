@@ -85,6 +85,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
         },
       },
     }),
+    
     CloudinaryModule, // ✅ პირველ რიგში
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
@@ -96,6 +97,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     GeorgianGastronomyModule,
     ToursServiceModule,
   ],
+
   controllers: [AppController], // ✅ მხოლოდ AppController!
   providers: [AppService], // ✅ მხოლოდ AppService!
 })
