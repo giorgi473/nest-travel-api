@@ -11,6 +11,7 @@
 //   providers: [ToursServiceService],
 // })
 // export class ToursServiceModule {}
+
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ToursServiceService } from './tours-service.service';

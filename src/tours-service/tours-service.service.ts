@@ -212,7 +212,6 @@
 //     }
 //   }
 // }
-
 import {
   Injectable,
   NotFoundException,
@@ -224,6 +223,7 @@ import { Card } from './entities/card.entity';
 import { PopularTour } from './entities/popular-tour.entity';
 import { CreateCardDto } from './dto/create-tour.dto';
 import { UpdateCardDto } from './dto/update-tours-service.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class ToursServiceService {
@@ -232,6 +232,7 @@ export class ToursServiceService {
     private cardRepository: Repository<Card>,
     @InjectRepository(PopularTour)
     private popularTourRepository: Repository<PopularTour>,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   // 📌 CARD CRUD
@@ -242,6 +243,36 @@ export class ToursServiceService {
       return await this.cardRepository.save(card);
     } catch (error) {
       throw new BadRequestException(`Failed to create card: ${error.message}`);
+    }
+  }
+
+  async uploadCardImage(
+    file: Express.Multer.File,
+  ): Promise<{ url: string; publicId: string }> {
+    try {
+      if (!file) {
+        throw new BadRequestException('No file provided');
+      }
+
+      const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      return await this.cloudinaryService.uploadImage(base64, 'tours/cards');
+    } catch (error) {
+      throw new BadRequestException(`Image upload failed: ${error.message}`);
+    }
+  }
+
+  async uploadTourImage(
+    file: Express.Multer.File,
+  ): Promise<{ url: string; publicId: string }> {
+    try {
+      if (!file) {
+        throw new BadRequestException('No file provided');
+      }
+
+      const base64 = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      return await this.cloudinaryService.uploadImage(base64, 'tours/popular');
+    } catch (error) {
+      throw new BadRequestException(`Image upload failed: ${error.message}`);
     }
   }
 
@@ -273,6 +304,15 @@ export class ToursServiceService {
 
   async deleteCard(id: number): Promise<{ message: string }> {
     const card = await this.getCardById(id);
+
+    // Delete image from Cloudinary
+    if (card.image) {
+      const publicId = this.extractPublicIdFromUrl(card.image);
+      if (publicId) {
+        await this.cloudinaryService.deleteImage(publicId);
+      }
+    }
+
     await this.cardRepository.remove(card);
     return { message: `Card with ID ${id} deleted successfully` };
   }
@@ -322,6 +362,14 @@ export class ToursServiceService {
       throw new NotFoundException(`Popular Tour with ID ${tourId} not found`);
     }
 
+    // Delete image from Cloudinary
+    if (tour.image) {
+      const publicId = this.extractPublicIdFromUrl(tour.image);
+      if (publicId) {
+        await this.cloudinaryService.deleteImage(publicId);
+      }
+    }
+
     await this.popularTourRepository.remove(tour);
     return { message: `Popular Tour with ID ${tourId} deleted successfully` };
   }
@@ -343,5 +391,16 @@ export class ToursServiceService {
     }
 
     return createdCards;
+  }
+
+  // 📌 HELPER METHOD
+
+  private extractPublicIdFromUrl(url: string): string | null {
+    try {
+      const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)\./);
+      return match ? match[1] : null;
+    } catch {
+      return null;
+    }
   }
 }
