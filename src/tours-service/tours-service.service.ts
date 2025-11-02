@@ -328,7 +328,9 @@ export class ToursServiceService {
       ...createTourDto,
       card,
     });
+
     return (await this.popularTourRepository.save(tour)) as any;
+    
   }
 
   async getPopularToursByCard(cardId: number): Promise<PopularTour[]> {
