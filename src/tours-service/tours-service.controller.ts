@@ -102,7 +102,7 @@ import { ToursServiceService } from './tours-service.service';
 import { CreateCardDto, CreatePopularTourDto } from './dto/create-tour.dto';
 import { UpdateCardDto } from './dto/update-tours-service.dto';
 
-@Controller('api/v1/tours')
+@Controller('tours')
 export class ToursServiceController {
   private readonly logger = new Logger(ToursServiceController.name);
 
