@@ -218,33 +218,98 @@ export class ToursServiceService {
     private cloudinaryService: CloudinaryService,
   ) {}
 
+  // 📌 HELPER METHODS
+
+  private isBase64Image(str: string): boolean {
+    if (!str || typeof str !== 'string') {
+      return false;
+    }
+
+    return str.startsWith('data:image/') || str.startsWith('data:application/');
+  }
+
+  private async processImage(image: string, folder: string): Promise<string> {
+    if (!image) {
+      throw new BadRequestException('Image is required');
+    }
+
+    // თუ უკვე URL არის, დააბრუნე ისე როგორც არის
+    if (image.startsWith('http')) {
+      return image;
+    }
+
+    // თუ base64 არის, აიტვირთე
+    if (this.isBase64Image(image)) {
+      try {
+        const uploadResult = await this.cloudinaryService.uploadImage(
+          image,
+          folder,
+        );
+        return uploadResult.url;
+      } catch (error) {
+        this.logger.error(`Failed to upload image to ${folder}:`, error);
+        throw new BadRequestException(`Image upload failed: ${error.message}`);
+      }
+    }
+
+    throw new BadRequestException(
+      'Image must be either a base64 string or a valid URL',
+    );
+  }
+
   // 📌 CARD CRUD
 
   async createCard(createCardDto: CreateCardDto): Promise<Card> {
     try {
-      let imageUrl = createCardDto.image;
+      this.logger.log('🔄 Processing card images...');
 
-      // ✅ თუ base64 არის, აიტვირთე
-      if (this.isBase64Image(createCardDto.image)) {
-        const uploadResult = await this.cloudinaryService.uploadImage(
-          createCardDto.image,
-          'tours/cards',
+      // ✅ დამუშავე card-ის სურათი
+      const cardImage = await this.processImage(
+        createCardDto.image,
+        'tours/cards',
+      );
+
+      // ✅ დამუშავე popularTours სურათები
+      let processedPopularTours: CreatePopularTourDto[] = [];
+      if (createCardDto.popularTours && createCardDto.popularTours.length > 0) {
+        this.logger.log(
+          `🔄 Processing ${createCardDto.popularTours.length} popular tour images...`,
         );
-        imageUrl = uploadResult.url;
+
+        processedPopularTours = await Promise.all(
+          createCardDto.popularTours.map(async (tour) => {
+            const tourImage = await this.processImage(
+              tour.image,
+              'tours/popular-tours',
+            );
+            return {
+              ...tour,
+              image: tourImage,
+            };
+          }),
+        );
+
+        this.logger.log(
+          `✅ All ${processedPopularTours.length} popular tour images processed`,
+        );
       }
 
+      // ✅ შექმენი card
       const card = this.cardRepository.create({
         ...createCardDto,
-        image: imageUrl,
+        image: cardImage,
+        popularTours: processedPopularTours as any,
       });
 
       const savedCard = await this.cardRepository.save(card);
-      this.logger.log(`✅ Card created with ID: ${savedCard.id}`);
+      this.logger.log(
+        `✅ Card created with ID: ${savedCard.id} and ${savedCard.popularTours?.length || 0} popular tours`,
+      );
 
       return savedCard;
     } catch (error) {
       this.logger.error('❌ Failed to create card:', error.message);
-      throw new BadRequestException(`Failed to create card: ${error.message}`);
+      throw error;
     }
   }
 
@@ -269,23 +334,48 @@ export class ToursServiceService {
   }
 
   async updateCard(id: number, updateCardDto: UpdateCardDto): Promise<Card> {
-    const card = await this.getCardById(id);
+    try {
+      const card = await this.getCardById(id);
 
-    let imageUrl = updateCardDto.image || card.image;
+      this.logger.log(`🔄 Updating card ID: ${id}`);
 
-    if (updateCardDto.image && this.isBase64Image(updateCardDto.image)) {
-      const uploadResult = await this.cloudinaryService.uploadImage(
-        updateCardDto.image,
-        'tours/cards',
-      );
-      imageUrl = uploadResult.url;
+      // ✅ დამუშავე card-ის სურათი
+      let cardImage = card.image;
+      if (updateCardDto.image) {
+        cardImage = await this.processImage(updateCardDto.image, 'tours/cards');
+      }
+
+      // ✅ დამუშავე popularTours სურათები თუ გაწერილი არიან
+      let processedPopularTours = card.popularTours;
+      if (updateCardDto.popularTours && updateCardDto.popularTours.length > 0) {
+        processedPopularTours = (await Promise.all(
+          updateCardDto.popularTours.map(async (tour) => {
+            const tourImage = await this.processImage(
+              tour.image,
+              'tours/popular-tours',
+            );
+            return {
+              ...tour,
+              image: tourImage,
+            };
+          }),
+        )) as any;
+      }
+
+      Object.assign(card, {
+        ...updateCardDto,
+        image: cardImage,
+        popularTours: processedPopularTours,
+      });
+
+      await this.cardRepository.save(card);
+      this.logger.log(`✅ Card updated with ID: ${id}`);
+
+      return card;
+    } catch (error) {
+      this.logger.error('❌ Failed to update card:', error.message);
+      throw error;
     }
-
-    Object.assign(card, { ...updateCardDto, image: imageUrl });
-    await this.cardRepository.save(card);
-    this.logger.log(`✅ Card updated with ID: ${id}`);
-
-    return card;
   }
 
   async deleteCard(id: number): Promise<{ message: string }> {
@@ -305,27 +395,17 @@ export class ToursServiceService {
     try {
       const card = await this.getCardById(cardId);
 
-      let imageUrl = createTourDto.image;
+      this.logger.log(`🔄 Creating popular tour for card ID: ${cardId}`);
 
-      // ✅ ამ ნაწილის დახვეწა - უკეთესი base64 შემოწმება
-      if (createTourDto.image && this.isBase64Image(createTourDto.image)) {
-        this.logger.log(`📤 Uploading popular tour image to Cloudinary...`);
-
-        const uploadResult = await this.cloudinaryService.uploadImage(
-          createTourDto.image,
-          'tours/popular-tours',
-        );
-
-        imageUrl = uploadResult.url;
-        this.logger.log(`✅ Popular tour image uploaded: ${uploadResult.url}`);
-      } else if (createTourDto.image) {
-        this.logger.log(`📌 Popular tour image is already a URL`);
-        imageUrl = createTourDto.image;
-      }
+      // ✅ დამუშავე სურათი
+      const tourImage = await this.processImage(
+        createTourDto.image,
+        'tours/popular-tours',
+      );
 
       const tour = this.popularTourRepository.create({
         ...createTourDto,
-        image: imageUrl,
+        image: tourImage,
         card,
       });
 
@@ -335,9 +415,7 @@ export class ToursServiceService {
       return savedTour;
     } catch (error) {
       this.logger.error('❌ Failed to create popular tour:', error.message);
-      throw new BadRequestException(
-        `Failed to create popular tour: ${error.message}`,
-      );
+      throw error;
     }
   }
 
@@ -360,30 +438,25 @@ export class ToursServiceService {
         throw new NotFoundException(`Popular Tour with ID ${tourId} not found`);
       }
 
-      let imageUrl = updateTourDto.image || tour.image;
+      this.logger.log(`🔄 Updating popular tour ID: ${tourId}`);
 
-      if (updateTourDto.image && this.isBase64Image(updateTourDto.image)) {
-        this.logger.log(`📤 Uploading updated popular tour image...`);
-
-        const uploadResult = await this.cloudinaryService.uploadImage(
+      // ✅ დამუშავე სურათი
+      let tourImage = tour.image;
+      if (updateTourDto.image) {
+        tourImage = await this.processImage(
           updateTourDto.image,
           'tours/popular-tours',
         );
-
-        imageUrl = uploadResult.url;
-        this.logger.log(`✅ Popular tour image updated: ${uploadResult.url}`);
       }
 
-      Object.assign(tour, { ...updateTourDto, image: imageUrl });
+      Object.assign(tour, { ...updateTourDto, image: tourImage });
       await this.popularTourRepository.save(tour);
       this.logger.log(`✅ Popular tour updated with ID: ${tourId}`);
 
       return tour;
     } catch (error) {
       this.logger.error('❌ Failed to update popular tour:', error.message);
-      throw new BadRequestException(
-        `Failed to update popular tour: ${error.message}`,
-      );
+      throw error;
     }
   }
 
@@ -408,7 +481,7 @@ export class ToursServiceService {
     const existingCards = await this.cardRepository.count();
 
     if (existingCards > 0) {
-      this.logger.log('📌 Database already seeded, returning existing cards');
+      this.logger.log('📌 Database already seeded');
       return await this.getAllCards();
     }
 
@@ -424,25 +497,5 @@ export class ToursServiceService {
 
     this.logger.log(`✅ Database seeded successfully`);
     return createdCards;
-  }
-
-  // 📌 HELPER METHOD - Base64 შემოწმება
-  private isBase64Image(str: string): boolean {
-    if (!str || typeof str !== 'string') {
-      return false;
-    }
-
-    // Check for data:image format
-    if (str.startsWith('data:image/') || str.startsWith('data:application/')) {
-      return true;
-    }
-
-    // Check for raw base64 pattern (optional)
-    const base64Regex = /^[A-Za-z0-9+/=]+$/;
-    if (str.length > 100 && str.length % 4 === 0 && base64Regex.test(str)) {
-      return true;
-    }
-
-    return false;
   }
 }
