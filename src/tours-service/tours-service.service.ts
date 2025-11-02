@@ -190,6 +190,7 @@
 //   }
 // }
 
+// tours-service.service.ts (განახლებული createPopularTour)
 
 import {
   Injectable,
@@ -224,10 +225,7 @@ export class ToursServiceService {
       let imageUrl = createCardDto.image;
 
       // ✅ თუ base64 არის, აიტვირთე
-      if (
-        createCardDto.image.startsWith('data:image') ||
-        createCardDto.image.startsWith('data:application')
-      ) {
+      if (this.isBase64Image(createCardDto.image)) {
         const uploadResult = await this.cloudinaryService.uploadImage(
           createCardDto.image,
           'tours/cards',
@@ -270,19 +268,12 @@ export class ToursServiceService {
     return card;
   }
 
-  async updateCard(
-    id: number,
-    updateCardDto: UpdateCardDto,
-  ): Promise<Card> {
+  async updateCard(id: number, updateCardDto: UpdateCardDto): Promise<Card> {
     const card = await this.getCardById(id);
 
     let imageUrl = updateCardDto.image || card.image;
 
-    if (
-      updateCardDto.image &&
-      (updateCardDto.image.startsWith('data:image') ||
-        updateCardDto.image.startsWith('data:application'))
-    ) {
+    if (updateCardDto.image && this.isBase64Image(updateCardDto.image)) {
       const uploadResult = await this.cloudinaryService.uploadImage(
         updateCardDto.image,
         'tours/cards',
@@ -311,31 +302,43 @@ export class ToursServiceService {
     cardId: number,
     createTourDto: CreatePopularTourDto,
   ): Promise<PopularTour> {
-    const card = await this.getCardById(cardId);
+    try {
+      const card = await this.getCardById(cardId);
 
-    let imageUrl = createTourDto.image;
+      let imageUrl = createTourDto.image;
 
-    if (
-      createTourDto.image.startsWith('data:image') ||
-      createTourDto.image.startsWith('data:application')
-    ) {
-      const uploadResult = await this.cloudinaryService.uploadImage(
-        createTourDto.image,
-        'tours/popular-tours',
+      // ✅ ამ ნაწილის დახვეწა - უკეთესი base64 შემოწმება
+      if (createTourDto.image && this.isBase64Image(createTourDto.image)) {
+        this.logger.log(`📤 Uploading popular tour image to Cloudinary...`);
+
+        const uploadResult = await this.cloudinaryService.uploadImage(
+          createTourDto.image,
+          'tours/popular-tours',
+        );
+
+        imageUrl = uploadResult.url;
+        this.logger.log(`✅ Popular tour image uploaded: ${uploadResult.url}`);
+      } else if (createTourDto.image) {
+        this.logger.log(`📌 Popular tour image is already a URL`);
+        imageUrl = createTourDto.image;
+      }
+
+      const tour = this.popularTourRepository.create({
+        ...createTourDto,
+        image: imageUrl,
+        card,
+      });
+
+      const savedTour = await this.popularTourRepository.save(tour);
+      this.logger.log(`✅ Popular tour created with ID: ${savedTour.id}`);
+
+      return savedTour;
+    } catch (error) {
+      this.logger.error('❌ Failed to create popular tour:', error.message);
+      throw new BadRequestException(
+        `Failed to create popular tour: ${error.message}`,
       );
-      imageUrl = uploadResult.url;
     }
-
-    const tour = this.popularTourRepository.create({
-      ...createTourDto,
-      image: imageUrl,
-      card,
-    });
-
-    const savedTour = await this.popularTourRepository.save(tour);
-    this.logger.log(`✅ Popular tour created with ID: ${savedTour.id}`);
-
-    return savedTour;
   }
 
   async getPopularToursByCard(cardId: number): Promise<PopularTour[]> {
@@ -348,33 +351,40 @@ export class ToursServiceService {
     tourId: number,
     updateTourDto: CreatePopularTourDto,
   ): Promise<PopularTour> {
-    const tour = await this.popularTourRepository.findOne({
-      where: { id: tourId },
-    });
+    try {
+      const tour = await this.popularTourRepository.findOne({
+        where: { id: tourId },
+      });
 
-    if (!tour) {
-      throw new NotFoundException(`Popular Tour with ID ${tourId} not found`);
-    }
+      if (!tour) {
+        throw new NotFoundException(`Popular Tour with ID ${tourId} not found`);
+      }
 
-    let imageUrl = updateTourDto.image || tour.image;
+      let imageUrl = updateTourDto.image || tour.image;
 
-    if (
-      updateTourDto.image &&
-      (updateTourDto.image.startsWith('data:image') ||
-        updateTourDto.image.startsWith('data:application'))
-    ) {
-      const uploadResult = await this.cloudinaryService.uploadImage(
-        updateTourDto.image,
-        'tours/popular-tours',
+      if (updateTourDto.image && this.isBase64Image(updateTourDto.image)) {
+        this.logger.log(`📤 Uploading updated popular tour image...`);
+
+        const uploadResult = await this.cloudinaryService.uploadImage(
+          updateTourDto.image,
+          'tours/popular-tours',
+        );
+
+        imageUrl = uploadResult.url;
+        this.logger.log(`✅ Popular tour image updated: ${uploadResult.url}`);
+      }
+
+      Object.assign(tour, { ...updateTourDto, image: imageUrl });
+      await this.popularTourRepository.save(tour);
+      this.logger.log(`✅ Popular tour updated with ID: ${tourId}`);
+
+      return tour;
+    } catch (error) {
+      this.logger.error('❌ Failed to update popular tour:', error.message);
+      throw new BadRequestException(
+        `Failed to update popular tour: ${error.message}`,
       );
-      imageUrl = uploadResult.url;
     }
-
-    Object.assign(tour, { ...updateTourDto, image: imageUrl });
-    await this.popularTourRepository.save(tour);
-    this.logger.log(`✅ Popular tour updated with ID: ${tourId}`);
-
-    return tour;
   }
 
   async deletePopularTour(tourId: number): Promise<{ message: string }> {
@@ -402,7 +412,9 @@ export class ToursServiceService {
       return await this.getAllCards();
     }
 
-    this.logger.log(`🌱 Seeding database with ${cardSliderImages.length} cards`);
+    this.logger.log(
+      `🌱 Seeding database with ${cardSliderImages.length} cards`,
+    );
     const createdCards: Card[] = [];
 
     for (const cardData of cardSliderImages) {
@@ -412,5 +424,25 @@ export class ToursServiceService {
 
     this.logger.log(`✅ Database seeded successfully`);
     return createdCards;
+  }
+
+  // 📌 HELPER METHOD - Base64 შემოწმება
+  private isBase64Image(str: string): boolean {
+    if (!str || typeof str !== 'string') {
+      return false;
+    }
+
+    // Check for data:image format
+    if (str.startsWith('data:image/') || str.startsWith('data:application/')) {
+      return true;
+    }
+
+    // Check for raw base64 pattern (optional)
+    const base64Regex = /^[A-Za-z0-9+/=]+$/;
+    if (str.length > 100 && str.length % 4 === 0 && base64Regex.test(str)) {
+      return true;
+    }
+
+    return false;
   }
 }
