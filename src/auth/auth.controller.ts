@@ -1,3 +1,59 @@
+// import {
+//   Controller,
+//   Post,
+//   Body,
+//   UseGuards,
+//   Request,
+//   Get,
+//   UnauthorizedException,
+// } from '@nestjs/common';
+// import { AuthService } from './auth.service';
+// import { CreateAuthDto } from './dto/create-auth.dto';
+// import { LoginAuthDto } from './dto/login-auth.dto';
+// import { JwtGuard } from './guards/jwt.guard';
+// import { RefreshJwtGuard } from './guards/refresh-jwt.guard';
+// import { ChangePasswordDto } from './dto/change-password.dto';
+
+// @Controller('auth')
+// export class AuthController {
+//   constructor(private authService: AuthService) {}
+
+//   @Post('register')
+//   register(@Body() dto: CreateAuthDto) {
+//     return this.authService.register(dto);
+//   }
+
+//   @Post('login')
+//   login(@Body() dto: LoginAuthDto) {
+//     return this.authService.login(dto);
+//   }
+
+//   @Post('refresh')
+//   @UseGuards(RefreshJwtGuard)
+//   refreshToken(@Request() req) {
+//     return this.authService.refreshToken(req.user.sub);
+//   }
+
+//   @Post('change-password')
+//   @UseGuards(JwtGuard)
+//   changePassword(@Request() req, @Body() dto: ChangePasswordDto) {
+//     return this.authService.changePassword(
+//       req.user.sub,
+//       dto.oldPassword,
+//       dto.newPassword,
+//     );
+//   }
+
+//   @Get('me')
+//   @UseGuards(JwtGuard)
+//   getProfile(@Request() req) {
+//     if (!req.user?.sub) {
+//       throw new UnauthorizedException('No user in request');
+//     }
+
+//     return this.authService.validateUser(req.user.sub);
+//   }
+// }
 import {
   Controller,
   Post,
@@ -6,13 +62,20 @@ import {
   Request,
   Get,
   UnauthorizedException,
+  UseInterceptors,
+  UploadedFile,
+  Patch,
+  Delete,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthService } from './auth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import { JwtGuard } from './guards/jwt.guard';
 import { RefreshJwtGuard } from './guards/refresh-jwt.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UploadAvatarDto } from './dto/upload-avatar.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -34,19 +97,6 @@ export class AuthController {
     return this.authService.refreshToken(req.user.sub);
   }
 
-  // @Post('change-password')
-  // @UseGuards(JwtGuard)
-  // changePassword(
-  //   @Request() req,
-  //   @Body() body: { oldPassword: string; newPassword: string },
-  // ) {
-  //   return this.authService.changePassword(
-  //     req.user.sub,
-  //     body.oldPassword,
-  //     body.newPassword,
-  //   );
-  // }
-
   @Post('change-password')
   @UseGuards(JwtGuard)
   changePassword(@Request() req, @Body() dto: ChangePasswordDto) {
@@ -63,7 +113,39 @@ export class AuthController {
     if (!req.user?.sub) {
       throw new UnauthorizedException('No user in request');
     }
-
     return this.authService.validateUser(req.user.sub);
+  }
+
+  // 🖼️ UPLOAD AVATAR - file-ის მიერ
+  @Post('me/avatar')
+  @UseGuards(JwtGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadAvatar(
+    @Request() req,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const base64 = file.buffer.toString('base64');
+    return this.authService.uploadUserAvatar(req.user.sub, base64);
+  }
+
+  // 🖼️ UPDATE AVATAR - base64-ით
+  @Patch('me/avatar')
+  @UseGuards(JwtGuard)
+  async updateAvatar(@Request() req, @Body() dto: UploadAvatarDto) {
+    if (!dto.avatarFile) {
+      throw new BadRequestException('Avatar file is required');
+    }
+    return this.authService.uploadUserAvatar(req.user.sub, dto.avatarFile);
+  }
+
+  // 🗑️ DELETE AVATAR
+  @Delete('me/avatar')
+  @UseGuards(JwtGuard)
+  async deleteAvatar(@Request() req) {
+    return this.authService.deleteUserAvatar(req.user.sub);
   }
 }
