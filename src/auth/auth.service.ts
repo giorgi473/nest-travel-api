@@ -212,12 +212,57 @@ export class AuthService {
     };
   }
   // avatarFile: string
+  // async uploadAvatar(userId: number, file: Express.Multer.File) {
+  //   const user = await this.userRepo.findOne({ where: { id: userId } });
+  //   if (!user) {
+  //     throw new UnauthorizedException('User not found');
+  //   }
+
+  //   if (user.avatarPublicId) {
+  //     try {
+  //       await this.cloudinaryService.deleteImage(user.avatarPublicId);
+  //     } catch (error) {
+  //       console.warn('Failed to delete old avatar:', error.message);
+  //     }
+  //   }
+
+  //   const { url, publicId } = await this.cloudinaryService.uploadImage(
+  //     // avatarFile,
+  //     file.buffer as any,
+  //     'user-avatars',
+  //   );
+
+  //   user.avatar = url;
+  //   user.avatarPublicId = publicId;
+  //   await this.userRepo.save(user);
+
+  //   return {
+  //     message: 'Avatar uploaded successfully',
+  //     user: {
+  //       id: user.id,
+  //       email: user.email,
+  //       username: user.username,
+  //       avatar: user.avatar,
+  //     },
+  //   };
+  // }
+
   async uploadAvatar(userId: number, file: Express.Multer.File) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
+    // Validate file
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('File must be an image');
+    }
+
+    // თუ უკვე avatar ყავს, წაშალე cloudinary-დან
     if (user.avatarPublicId) {
       try {
         await this.cloudinaryService.deleteImage(user.avatarPublicId);
@@ -226,12 +271,14 @@ export class AuthService {
       }
     }
 
-    const { url, publicId } = await this.cloudinaryService.uploadImage(
-      // avatarFile,
-      file.buffer as any,
-      'user-avatars',
-    );
+    // upload ნიუ avatar from buffer
+    const { url, publicId } =
+      await this.cloudinaryService.uploadImageFromBuffer(
+        file.buffer,
+        'user-avatars',
+      );
 
+    // update user
     user.avatar = url;
     user.avatarPublicId = publicId;
     await this.userRepo.save(user);
