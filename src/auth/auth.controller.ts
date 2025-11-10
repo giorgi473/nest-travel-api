@@ -54,6 +54,7 @@
 //     return this.authService.validateUser(req.user.sub);
 //   }
 // }
+
 import {
   Controller,
   Post,
@@ -62,13 +63,7 @@ import {
   Request,
   Get,
   UnauthorizedException,
-  UseInterceptors,
-  UploadedFile,
-  Patch,
-  Delete,
-  BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthService } from './auth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
@@ -113,39 +108,13 @@ export class AuthController {
     if (!req.user?.sub) {
       throw new UnauthorizedException('No user in request');
     }
+
     return this.authService.validateUser(req.user.sub);
   }
 
-  // 🖼️ UPLOAD AVATAR - file-ის მიერ
-  @Post('me/avatar')
+  @Post('me/upload-avatar') // 🔴 დაემატა ნიუ endpoint
   @UseGuards(JwtGuard)
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadAvatar(
-    @Request() req,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
-    }
-
-    const base64 = file.buffer.toString('base64');
-    return this.authService.uploadUserAvatar(req.user.sub, base64);
-  }
-
-  // 🖼️ UPDATE AVATAR - base64-ით
-  @Patch('me/avatar')
-  @UseGuards(JwtGuard)
-  async updateAvatar(@Request() req, @Body() dto: UploadAvatarDto) {
-    if (!dto.avatarFile) {
-      throw new BadRequestException('Avatar file is required');
-    }
-    return this.authService.uploadUserAvatar(req.user.sub, dto.avatarFile);
-  }
-
-  // 🗑️ DELETE AVATAR
-  @Delete('me/avatar')
-  @UseGuards(JwtGuard)
-  async deleteAvatar(@Request() req) {
-    return this.authService.deleteUserAvatar(req.user.sub);
+  uploadAvatar(@Request() req, @Body() dto: UploadAvatarDto) {
+    return this.authService.uploadAvatar(req.user.sub, dto.avatarFile);
   }
 }

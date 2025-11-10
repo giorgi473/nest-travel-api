@@ -140,7 +140,6 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
-  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -153,8 +152,6 @@ import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
     @InjectRepository(User) private userRepo: Repository<User>,
     private jwtService: JwtService,
@@ -171,21 +168,20 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = this.userRepo.create({
-      email,
-      username,
-      password: hashedPassword,
-      isEmailVerified: false,
-      avatarUrl: null,
-      avatarPublicId: null,
-    });
+    const user = new User();
+    user.email = email;
+    user.username = username;
+    user.password = hashedPassword;
+    user.isEmailVerified = false;
+    user.avatar = null;
+    user.avatarPublicId = null;
 
     await this.userRepo.save(user);
 
     const tokens = this.generateTokens(user.id, user.email);
     return {
       message: 'Registration successful',
-      user: this.formatUserResponse(user),
+      user: { id: user.id, email: user.email, username: user.username },
       ...tokens,
     };
   }
@@ -206,8 +202,47 @@ export class AuthService {
     const tokens = this.generateTokens(user.id, user.email);
     return {
       message: 'Login successful',
-      user: this.formatUserResponse(user),
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        avatar: user.avatar,
+      },
       ...tokens,
+    };
+  }
+
+  async uploadAvatar(userId: number, avatarFile: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.avatarPublicId) {
+      try {
+        await this.cloudinaryService.deleteImage(user.avatarPublicId);
+      } catch (error) {
+        console.warn('Failed to delete old avatar:', error.message);
+      }
+    }
+
+    const { url, publicId } = await this.cloudinaryService.uploadImage(
+      avatarFile,
+      'user-avatars',
+    );
+
+    user.avatar = url;
+    user.avatarPublicId = publicId;
+    await this.userRepo.save(user);
+
+    return {
+      message: 'Avatar uploaded successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        avatar: user.avatar,
+      },
     };
   }
 
@@ -257,80 +292,6 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-
-    return this.formatUserResponse(user);
-  }
-
-  // 🖼️ UPLOAD/UPDATE AVATAR
-  async uploadUserAvatar(userId: number, base64Image: string) {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    try {
-      // თუ ძველი avatar აქვს, წაშალე Cloudinary-დან
-      if (user.avatarPublicId) {
-        this.logger.log(`🗑️ Deleting old avatar: ${user.avatarPublicId}`);
-        await this.cloudinaryService.deleteImage(user.avatarPublicId);
-      }
-
-      // Upload new avatar to Cloudinary
-      this.logger.log(`📤 Uploading new avatar for user: ${userId}`);
-      const { url, publicId } = await this.cloudinaryService.uploadImage(
-        base64Image,
-        `user-avatars/user-${userId}`,
-      );
-
-      // Update user in database
-      user.avatarUrl = url;
-      user.avatarPublicId = publicId;
-      await this.userRepo.save(user);
-
-      this.logger.log(`✅ Avatar updated successfully for user: ${userId}`);
-
-      return {
-        message: 'Avatar uploaded successfully',
-        user: this.formatUserResponse(user),
-      };
-    } catch (error) {
-      this.logger.error(`❌ Avatar upload failed: ${error.message}`);
-      throw new BadRequestException(`Avatar upload failed: ${error.message}`);
-    }
-  }
-
-  // 🗑️ DELETE AVATAR
-  async deleteUserAvatar(userId: number) {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    if (!user.avatarPublicId) {
-      throw new BadRequestException('User has no avatar to delete');
-    }
-
-    try {
-      this.logger.log(`🗑️ Deleting avatar: ${user.avatarPublicId}`);
-      await this.cloudinaryService.deleteImage(user.avatarPublicId);
-
-      user.avatarUrl = null;
-      user.avatarPublicId = null;
-      await this.userRepo.save(user);
-
-      this.logger.log(`✅ Avatar deleted successfully`);
-
-      return {
-        message: 'Avatar deleted successfully',
-        user: this.formatUserResponse(user),
-      };
-    } catch (error) {
-      this.logger.error(`❌ Avatar deletion failed: ${error.message}`);
-      throw new BadRequestException(`Avatar deletion failed: ${error.message}`);
-    }
-  }
-
-  private formatUserResponse(user: User) {
     const { password, ...result } = user;
     return result;
   }
