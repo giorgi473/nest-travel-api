@@ -63,6 +63,8 @@ import {
   Request,
   Get,
   UnauthorizedException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
@@ -71,6 +73,7 @@ import { JwtGuard } from './guards/jwt.guard';
 import { RefreshJwtGuard } from './guards/refresh-jwt.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UploadAvatarDto } from './dto/upload-avatar.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('auth')
 export class AuthController {
@@ -112,9 +115,16 @@ export class AuthController {
     return this.authService.validateUser(req.user.sub);
   }
 
-  @Post('me/upload-avatar') // 🔴 დაემატა ნიუ endpoint
+  // @Post('me/upload-avatar') // 🔴 დაემატა ნიუ endpoint
+  // @UseGuards(JwtGuard)
+  // uploadAvatar(@Request() req, @Body() dto: UploadAvatarDto) {
+  //   return this.authService.uploadAvatar(req.user.sub, dto.avatarFile);
+  // }
+
+  @Post('me/upload-avatar')
   @UseGuards(JwtGuard)
-  uploadAvatar(@Request() req, @Body() dto: UploadAvatarDto) {
-    return this.authService.uploadAvatar(req.user.sub, dto.avatarFile);
+  @UseInterceptors(FileInterceptor('file'))
+  uploadAvatar(@Request() req, @UploadedFile() file: Express.Multer.File) {
+    return this.authService.uploadAvatar(req.user.sub, file);
   }
 }

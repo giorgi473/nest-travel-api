@@ -211,8 +211,8 @@ export class AuthService {
       ...tokens,
     };
   }
-
-  async uploadAvatar(userId: number, avatarFile: string) {
+  // avatarFile: string
+  async uploadAvatar(userId: number, file: Express.Multer.File) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
@@ -227,7 +227,8 @@ export class AuthService {
     }
 
     const { url, publicId } = await this.cloudinaryService.uploadImage(
-      avatarFile,
+      // avatarFile,
+      file.buffer as any,
       'user-avatars',
     );
 
